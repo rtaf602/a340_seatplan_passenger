@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>A340 Passenger Seat Plan</title>
+<link rel="icon" href="emblem.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Barlow+Semi+Condensed:wght@400;500;600&family=Sarabun:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="boardingpass.css">
+<script src="config.js"></script>
+</head>
+<body>
+
+<!-- ===== หน้ารายการภารกิจ ===== -->
+<div class="wrap" id="pageMissions" hidden>
+  <div class="bar">
+    <h1>SEAT PLAN A340<small>ผังที่นั่งผู้โดยสารชั่วคราว · เลือกหรือเปิดภารกิจ</small></h1>
+    <div class="who"><label for="whoM">ชื่อผู้บันทึก</label><input id="whoM" class="whoIn" maxlength="60" placeholder="พิมพ์ชื่อของคุณ" autocomplete="off"></div>
+    <div class="tools">
+      <button class="btn pri" id="bNew" type="button">+ เปิดภารกิจใหม่</button>
+      <button class="btn" id="bReloadM" type="button">โหลดใหม่</button>
+      <a class="sheetlink" id="sheetLinkM" target="_blank" rel="noopener" hidden>เปิด Google Sheet</a>
+    </div>
+  </div>
+  <div class="notice" id="noticeM" hidden></div>
+  <section>
+    <h2>ภารกิจทั้งหมด <span id="mcount" class="muted"></span></h2>
+    <div class="mlist" id="mlist"></div>
+    <p class="empty" id="mempty" hidden>ยังไม่มีภารกิจ กด “+ เปิดภารกิจใหม่” เพื่อเริ่ม</p>
+  </section>
+</div>
+
+<!-- ===== หน้าผังที่นั่งของภารกิจ ===== -->
+<div class="wrap" id="pagePlan" hidden>
+  <div class="bar">
+    <a class="back" href="#" id="backLink">‹ รายการภารกิจ</a>
+    <h1 id="planTitle">SEAT PLAN A340<small>ผังที่นั่งผู้โดยสาร</small></h1>
+    <div class="who"><label for="whoP">ชื่อผู้บันทึก</label><input id="whoP" class="whoIn" maxlength="60" placeholder="พิมพ์ชื่อของคุณ" autocomplete="off"></div>
+    <div class="tools">
+      <button class="btn danger" id="bClear" type="button">CLEAR</button>
+      <button class="btn pri" id="bSave" type="button">SAVE</button>
+      <button class="btn" id="bPreview" type="button">PREVIEW</button>
+      <button class="btn" id="bPdf" type="button">EXPORT TO PDF</button>
+      <button class="btn gold" id="bBp" type="button">PRINT BOARDING PASS</button>
+    </div>
+    <div class="status"><span class="pend" id="pend"></span><span id="lastSave"></span><a class="sheetlink" id="sheetLink" target="_blank" rel="noopener" hidden>เปิด Google Sheet</a></div>
+    <div class="sync" id="sync">กำลังโหลดข้อมูล…</div>
+  </div>
+  <div class="notice" id="notice" hidden></div>
+
+  <section class="card">
+    <h2>ข้อมูลภารกิจ</h2>
+    <div class="info" id="infoForm">
+      <label class="f"><span>ประเภทเครื่องบิน</span><input id="iAircraft" value="A340" readonly tabindex="-1" class="fixed" title="กำหนดไว้เป็น A340 แก้ไขไม่ได้"></label>
+      <label class="f wide"><span>ชื่อภารกิจ</span><input data-k="name" maxlength="200" placeholder="นายกรัฐมนตรี และคณะเยือนสาธารัฐฟีจี"></label>
+      <label class="f"><span>เที่ยวบินที่</span><input data-k="flight" maxlength="20" class="up" placeholder="RTAF201"></label>
+      <label class="f"><span>Sector (IATA CODE)</span><input data-k="sector" maxlength="40" class="up" placeholder="DMK-NAN"></label>
+      <div class="f"><span>วัน-เดือน-ปี ที่ทำการบิน</span>
+        <div class="date" id="iDate">
+          <select id="dD" aria-label="วัน"></select><select id="dM" aria-label="เดือน"></select><select id="dY" aria-label="ปี"></select>
+        </div>
+      </div>
+      <label class="f"><span>GATE</span><input data-k="gate" maxlength="12" class="up" placeholder="RTAF2"></label>
+      <label class="f"><span>BOARDING TIME</span><input data-k="time" maxlength="5" inputmode="numeric" placeholder="07:00"></label>
+      <label class="f wide"><span>หมายเหตุสำหรับ Boarding Pass</span><input data-k="note" maxlength="200" placeholder="เช่น บัตรที่ระลึก · ไม่ใช่เอกสารเดินทาง"></label>
+    </div>
+  </section>
+
+  <section>
+    <h2>ที่นั่งว่างตามโซน</h2>
+    <div class="tablebox"><table id="summary"></table></div>
+  </section>
+
+  <div class="legend" id="legend">
+    <span><i class="sw sw-empty"></i>ว่าง</span>
+    <span><i class="sw sw-occ"></i>มีผู้โดยสาร</span>
+    <span><i class="sw sw-warn"></i>ที่นั่งขัดข้องแต่ใช้ได้ (!)</span>
+    <span><i class="sw sw-bad"></i>ที่นั่งใช้ไม่ได้ (×)</span>
+    <span><i class="sw sw-crew"></i>CREW ZONE</span>
+    <span><i class="sw mon" style="background:var(--ok)"></i><i class="sw mon" style="background:var(--warn)"></i><i class="sw mon" style="background:var(--bad)"></i>แถบบนที่นั่ง / ป้าย = จอ ปกติ · เสื่อม · เสีย</span>
+    <span class="nopdf"><i class="sw sw-empty" style="outline:2px dashed var(--accent);outline-offset:2px"></i>เส้นประ = แก้ไขแล้ว ยังไม่ SAVE</span>
+  </div>
+
+  <div id="zones"></div>
+
+  <section class="card">
+    <h2>รายชื่อผู้โดยสาร <span id="pcount" class="muted"></span></h2>
+    <div class="tablebox"><table class="manifest" id="manifest"></table></div>
+    <p class="empty" id="pempty">ยังไม่มีรายชื่อ แตะที่นั่งในผังเพื่อกรอกข้อมูลผู้โดยสาร</p>
+  </section>
+
+  <details class="card hist" id="histBox">
+    <summary><h2>ประวัติการบันทึกของภารกิจนี้ <span id="hcount" class="muted"></span></h2></summary>
+    <div class="tablebox"><table class="htable" id="history"></table></div>
+  </details>
+
+  <div class="foot">
+    <button class="btn" id="bAdmin" type="button" aria-expanded="false">ADMIN</button>
+  </div>
+  <section class="card admin" id="adminBox" hidden>
+    <h2>ADMIN</h2>
+    <div class="adm">
+      <label class="f"><span>กั้นที่นั่งให้ลูกเรือ จากหัวเครื่อง ถึงแถว</span><select id="crewFront"></select></label>
+      <label class="f"><span>กั้นที่นั่งให้ลูกเรือ จากท้ายเครื่อง ถึงแถว</span><select id="crewRear"></select></label>
+    </div>
+    <p class="hint left">โซนที่กั้นจะขึ้น <b class="red">CREW ZONE</b> ผู้โดยสารกรอกที่นั่งในโซนนั้นไม่ได้ และหักออกจากจำนวนที่นั่งว่าง เปลี่ยนแล้วกด SAVE เพื่อบันทึก</p>
+    <div class="acts left"><button class="btn gold" id="bBp2" type="button">PRINT BOARDING PASS</button></div>
+  </section>
+</div>
+
+<!-- ===== ผู้โดยสารรายที่นั่ง ===== -->
+<dialog id="dlg">
+  <h3 id="dTitle"></h3>
+  <p class="sub" id="dSub"></p>
+  <p class="dnote" id="dState" hidden></p>
+  <div class="pfields" id="pFields">
+    <label class="f"><span>ตำแหน่ง/ยศ ย่อ ภาษาไทย</span><input id="pRt" maxlength="30" list="rankList" placeholder="ร.อ." autocomplete="off"></label>
+    <label class="f"><span>ชื่อ-สกุล ภาษาไทย</span><input id="pNt" maxlength="120" placeholder="มานะ  พากเพียร" autocomplete="off"></label>
+    <label class="f"><span>ตำแหน่ง/ยศ ย่อ ภาษาอังกฤษ</span><input id="pRe" maxlength="30" class="up" placeholder="FLT.LT." autocomplete="off"></label>
+    <label class="f"><span>ชื่อ-สกุล ภาษาอังกฤษ (ตัวพิมพ์ใหญ่)</span><input id="pNe" maxlength="120" class="up" placeholder="MANA  PHAKPHIAN" autocomplete="off"></label>
+  </div>
+  <datalist id="rankList"></datalist>
+  <p class="err" id="dErr" hidden></p>
+  <div class="acts">
+    <button class="btn danger" id="dClearSeat" type="button">ล้างที่นั่งนี้</button>
+    <span class="grow"></span>
+    <button class="btn" id="dCancel" type="button">ยกเลิก</button>
+    <button class="btn pri" id="dOk" type="button">ตกลง</button>
+  </div>
+  <p class="hint">กดตกลงแล้ว อย่าลืมกด SAVE ด้านบนเพื่อบันทึกลง Google Sheet</p>
+</dialog>
+
+<dialog id="ask" class="small">
+  <h3 id="aTitle"></h3>
+  <p class="sub" id="aMsg"></p>
+  <div class="acts"><button class="btn" id="aNo" type="button">ยกเลิก</button><button class="btn danger" id="aYes" type="button"></button></div>
+</dialog>
+
+<dialog id="warn" class="small">
+  <h3>⚠ ยังไม่ได้ SAVE</h3>
+  <p class="sub" id="wMsg"></p>
+  <div class="acts"><button class="btn" id="wNo" type="button">ยกเลิก</button><button class="btn pri" id="wSave" type="button">SAVE ก่อน แล้วทำต่อ</button><button class="btn" id="wGo" type="button"></button></div>
+</dialog>
+
+<dialog id="newDlg" class="small">
+  <h3>เปิดภารกิจใหม่</h3>
+  <p class="sub">ระบบจะสร้างแท็บใหม่ใน Google Sheet สำหรับภารกิจนี้ (1 ภารกิจ ต่อ 1 แท็บ) ข้อมูลอื่นกรอกต่อได้ในหน้าผังที่นั่ง</p>
+  <label class="f"><span>ชื่อภารกิจ</span><input id="nName" maxlength="200" placeholder="นายกรัฐมนตรี และคณะเยือนสาธารัฐฟีจี"></label>
+  <label class="f"><span>เที่ยวบินที่</span><input id="nFlight" maxlength="20" class="up" placeholder="RTAF201"></label>
+  <p class="err" id="nErr" hidden></p>
+  <div class="acts"><button class="btn" id="nNo" type="button">ยกเลิก</button><button class="btn pri" id="nYes" type="button">เปิดภารกิจ</button></div>
+</dialog>
+
+<dialog id="pv" class="wide">
+  <div class="pvbar">
+    <h3>PREVIEW ผังที่นั่ง</h3>
+    <div class="acts"><button class="btn" id="pvClose" type="button">ปิด</button><button class="btn pri" id="pvPdf" type="button">EXPORT TO PDF</button></div>
+  </div>
+  <div class="pvbody" id="pvBody"></div>
+</dialog>
+
+<dialog id="bpDlg" class="wide">
+  <div class="pvbar">
+    <h3>PRINT BOARDING PASS</h3>
+    <div class="acts"><button class="btn" id="bpClose" type="button">ปิด</button><button class="btn gold" id="bpPrint" type="button">พิมพ์</button></div>
+  </div>
+  <div class="bpwrap">
+    <div class="bpside">
+      <label class="f"><span>กระดาษที่ใช้พิมพ์</span>
+        <select id="bpPaper">
+          <option value="a4">A4 ขนาดจริง 3 ใบต่อแผ่น พร้อมขีดตัด</option>
+          <option value="card">กระดาษขนาดบัตร 203 × 82.5 มม.</option>
+        </select>
+      </label>
+      <div class="bpsel">
+        <label class="chk"><input type="checkbox" id="bpAll"> <b>เลือกทั้งหมด</b> <span id="bpCount" class="muted"></span></label>
+        <div id="bpList" class="bplist"></div>
+      </div>
+      <p class="hint left" id="bpNote">ในหน้าต่างพิมพ์ ให้ตั้ง <b>Scale 100%</b> · <b>Margins: None</b> · เปิด <b>Background graphics</b> บาร์โค้ดและ QR เป็นลายตกแต่ง สแกนไม่ได้</p>
+    </div>
+    <div class="bppv" id="bpPv"></div>
+  </div>
+</dialog>
+
+<div class="gate" id="gate" hidden>
+  <div class="gatebox" role="dialog" aria-modal="true" aria-labelledby="gateT">
+    <img src="emblem.png" alt="" class="gatelogo">
+    <h2 id="gateT">SEAT PLAN A340</h2>
+    <p>ผังที่นั่งผู้โดยสาร · ใส่รหัสผ่านเพื่อเข้าใช้งาน</p>
+    <input id="gatePin" type="password" inputmode="numeric" autocomplete="off" placeholder="รหัสผ่าน">
+    <p class="err" id="gateErr" hidden></p>
+    <button class="btn pri" id="gateBtn" type="button">เข้าใช้งาน</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="boardingpass.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
