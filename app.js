@@ -183,18 +183,23 @@ function setFlight(ds,v){var m=/^(\d{1,2})\s+([A-Z]{3})\s+(\d{2})$/.exec(String(
 function showGate(err){
   $('pageMissions').hidden=true;$('pagePlan').hidden=true;
   $('gate').hidden=false;$('gateErr').textContent=err||'';$('gateErr').hidden=!err;$('gateBtn').disabled=false;
-  $('gatePin').value='';$('gsiBox').hidden=!clientId;
-  if(clientId)initGsi();
-  setTimeout(function(){$('gatePin').focus()},50);
+  $('gatePin').value='';$('gsiBox').hidden=!clientId;$('pinHead').hidden=!clientId;
+  if(clientId){gsiCred='';$('gsiOk').hidden=true;gsiStep();initGsi()}
+  else setTimeout(function(){$('gatePin').focus()},50);
 }
 function hideGate(){$('gate').hidden=true}
 var gsiLoaded=null;
 function jwtEmail(t){try{var b=t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');return JSON.parse(decodeURIComponent(escape(atob(b)))).email||''}catch(e){return ''}}
+/* step 1 (Google) -> step 2 (PIN): highlight the step the user is on */
+function gsiStep(){var ok=!!gsiCred;
+  $('gsiBox').classList.toggle('done',ok);$('gsiBox').classList.toggle('now',!ok);$('pinBox').classList.toggle('now',ok);
+  $('gNum1').textContent=ok?'✓':'1';$('gsiNote').hidden=ok;
+}
 function initGsi(){
   if(!gsiLoaded)gsiLoaded=new Promise(function(ok,no){var s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=ok;s.onerror=no;document.head.appendChild(s)});
   gsiLoaded.then(function(){
     google.accounts.id.initialize({client_id:clientId,callback:function(r){gsiCred=r.credential||'';
-      var e=jwtEmail(gsiCred);$('gsiOk').textContent=e?'Sign in แล้ว: '+e:'Sign in แล้ว';$('gsiOk').hidden=!gsiCred;$('gateErr').hidden=true;$('gatePin').focus()},
+      var e=jwtEmail(gsiCred);$('gsiOk').textContent=e?'✓ Sign in แล้ว: '+e:'✓ Sign in แล้ว';$('gsiOk').hidden=!gsiCred;$('gateErr').hidden=true;gsiStep();$('gatePin').focus()},
       auto_select:true,cancel_on_tap_outside:false});
     $('gsiBtn').textContent='';
     google.accounts.id.renderButton($('gsiBtn'),{theme:'outline',size:'large',text:'signin_with',shape:'rectangular',width:300});
@@ -202,11 +207,11 @@ function initGsi(){
 }
 $('gateBtn').addEventListener('click',function(){
   var p=$('gatePin').value.trim();if(!p){$('gatePin').focus();return}
-  if(clientId&&!gsiCred){$('gateErr').textContent='กด Sign in with Google ก่อน แล้วใส่รหัสผ่าน';$('gateErr').hidden=false;return}
+  if(clientId&&!gsiCred){$('gateErr').textContent='ขั้นที่ 1: กดปุ่ม Sign in with Google ก่อน แล้วจึงใส่รหัสผ่าน';$('gateErr').hidden=false;return}
   $('gateBtn').disabled=true;
   rawApi({action:'enter',pin:p,credential:gsiCred}).then(function(res){
     if(!res||!res.ok){
-      if(res&&res.error==='google'){gsiCred='';$('gsiOk').hidden=true}
+      if(res&&res.error==='google'){gsiCred='';$('gsiOk').hidden=true;gsiStep()}
       $('gateErr').textContent=(res&&res.message)||'เข้าใช้งานไม่สำเร็จ';$('gateErr').hidden=false;$('gateBtn').disabled=false;$('gatePin').value='';$('gatePin').focus();return}
     sess=res.s;email=res.email||'';gsiCred='';hideGate();route(true);
   },function(){$('gateErr').textContent='ติดต่อระบบไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง';$('gateErr').hidden=false;$('gateBtn').disabled=false});

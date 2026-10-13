@@ -303,5 +303,13 @@ dialog.wide[open]{display:flex;flex-direction:column}
 /* boarding pass dialog extras */
 .lbl{font-size:12px;color:var(--muted);font-weight:600}
 .bpzones{display:flex;flex-direction:column;gap:4px}
-.gsiok{font-size:13px;color:var(--ok);text-align:center;margin:0;overflow-wrap:anywhere}
+.gsiok{font-size:13px;color:var(--ok);font-weight:600;text-align:center;margin:0;overflow-wrap:anywhere}
+.gstep{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--bg)}
+.gstep.done{border-color:var(--ok);background:var(--ok-soft)}
+.gstep.now{border:2px solid var(--accent)}
+.ghead{display:flex;align-items:center;gap:8px;font-size:15px}
+.gnum{width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex:none}
+.gstep.done .gnum{background:var(--ok);color:#fff}
+.gnote{font-size:13px;color:var(--muted);margin:0;text-align:left!important}
+.gatebox{width:min(400px,100%)}
 #gsiBtn{display:flex;justify-content:center;min-height:44px}

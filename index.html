@@ -246,12 +246,17 @@
   <div class="gatebox" role="dialog" aria-modal="true" aria-labelledby="gateT">
     <img src="emblem.png" alt="" class="gatelogo">
     <h2 id="gateT">SEAT PLAN A340</h2>
-    <p>ผังที่นั่งผู้โดยสาร · ใส่รหัสผ่านเพื่อเข้าใช้งาน</p>
-    <div id="gsiBox" hidden>
+    <p>ผังที่นั่งผู้โดยสาร</p>
+    <div class="gstep" id="gsiBox" hidden>
+      <div class="ghead"><span class="gnum" id="gNum1">1</span><b>Sign in with Google Account</b></div>
+      <p class="gnote" id="gsiNote">กดปุ่มด้านล่างแล้วเลือกบัญชี Google ของคุณ (ใช้บันทึกอีเมลในประวัติการใช้งาน)</p>
       <div id="gsiBtn"></div>
       <p class="gsiok" id="gsiOk" hidden></p>
     </div>
-    <input id="gatePin" type="password" inputmode="numeric" autocomplete="off" placeholder="รหัสผ่าน">
+    <div class="gstep" id="pinBox">
+      <div class="ghead" id="pinHead" hidden><span class="gnum">2</span><b>ใส่รหัสผ่านเข้าใช้งาน</b></div>
+      <input id="gatePin" type="password" inputmode="numeric" autocomplete="off" placeholder="รหัสผ่าน">
+    </div>
     <p class="err" id="gateErr" hidden></p>
     <button class="btn pri" id="gateBtn" type="button">เข้าใช้งาน</button>
   </div>
