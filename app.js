@@ -358,12 +358,10 @@ $('nYes').addEventListener('click',function(){
   if($('nPw').value.length<4)return err('รหัสภารกิจต้องมีอย่างน้อย 4 ตัว');
   if($('nPw').value!==$('nPw2').value)return err('ยืนยันรหัสภารกิจไม่ตรงกัน');
   if(!$('nBy').value.trim())return err('กรอกชื่อผู้บันทึก');
-  $('nYes').disabled=true;
-  api({action:'create',by:$('nBy').value.trim(),info:info,mpw:$('nPw').value}).then(function(res){
-    if(authFail(res)){hideDlg($('newDlg'));return}
-    if(!res||!res.ok){err((res&&res.message)||'เปิดภารกิจไม่สำเร็จ');$('nYes').disabled=false;return}
-    mtok[res.id]=res.mt;hideDlg($('newDlg'));toast('เปิดภารกิจใหม่แล้ว');location.hash='m='+res.id;
-  },function(){err('ติดต่อระบบไม่ได้ ลองอีกครั้ง');$('nYes').disabled=false});
+  var body={action:'create',by:$('nBy').value.trim(),info:info,mpw:$('nPw').value};
+  credDialog({title:'Login เพื่อเปิดภารกิจใหม่',sub:[info.flight,'Sector '+info.sectorNo,info.route,info.date].filter(Boolean).join(' · ')+' · ยืนยันตัวตนด้วยข้อมูลใน LOGIN DATABASE',yes:'Login และเปิดภารกิจ',
+    submit:function(d){body.cred=d.cred;return api(body)},
+    done:function(res){mtok[res.id]=res.mt;hideDlg($('newDlg'));toast('เปิดภารกิจใหม่แล้ว');location.hash='m='+res.id}});
 });
 function normRoute(v){return String(v||'').toUpperCase().trim().replace(/\s*[-–—\/>]+\s*/g,'-').replace(/\s+/g,'-')}
 
@@ -811,6 +809,7 @@ function openBp(){
       return {id:r.id,zone:SEAT[r.id].zone,label:shortName(p),d:window.BoardingPass.data(p,info,zoneOf(SEAT[r.id].zone).name)}});
   }finally{useSaved=false}
   $('bpTitle').textContent=bpMode==='crew'?'PRINT BOARDING PASS · ลูกเรือ':'PRINT BOARDING PASS · ผู้โดยสาร';
+  $('bpSub').textContent=bpMode==='crew'?'เฉพาะลูกเรือใน CREW ZONE':'เฉพาะผู้โดยสาร ไม่รวมลูกเรือและที่นั่งใน CREW ZONE';
   var zh=$('bpZones');zh.textContent='';
   ZONES.forEach(function(z){var n=bpList.filter(function(it){return it.zone===z.key}).length;if(!n)return;
     var l=el('label','chk'),c=el('input');c.type='checkbox';c.checked=true;c.value=z.key;c.dataset.zone='1';

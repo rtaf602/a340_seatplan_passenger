@@ -321,6 +321,7 @@ function opCreate_(ctx, b) {
   if (pw.length < OPT.minMissionPw || pw.length > 60) throw err_('bad_request', 'รหัสภารกิจต้องมีอย่างน้อย ' + OPT.minMissionPw + ' ตัว');
   return withLock_(function () {
     const ss = SpreadsheetApp.getActive();
+    const p = credCheck_(ctx, b.cred, 'เปิดภารกิจใหม่', null);   // ต้อง Login ด้วย LOGIN DATABASE เหมือนหน้า ADMIN
     const ix = indexSheet_(ss);
     const v = {};
     INFO.forEach(function (f) { if (f[0] !== 'aircraft') v[f[0]] = normInfo_(f[0], info[f[0]]); });
@@ -336,6 +337,7 @@ function opCreate_(ctx, b) {
     appendLog_(sh, [[nowTxt, ctx.email, by, 'เปิดภารกิจ', title, '', detail]]);
     userLog_(ctx, null, ctx.email, by, 'เปิดภารกิจใหม่', title + ' · ' + detail);
     userLog_(ctx, rec, ctx.email, by, 'เปิดภารกิจ', detail);
+    adminAct_(ctx, p.username, rec, 'เปิดภารกิจใหม่', detail);
     return { ok: true, id: id, mt: sign_({ k: 'm', m: id, e: ctx.email, v: pwTag_(pw), x: ctx.now + OPT.missionHours * 3600e3 }) };
   });
 }

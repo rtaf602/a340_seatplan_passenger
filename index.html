@@ -6,9 +6,9 @@
 <title>A340 Passenger Seat Plan</title>
 <link rel="icon" href="emblem.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Barlow+Semi+Condensed:wght@400;500;600&family=Sarabun:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="app.css?v=2610132023">
-<link rel="stylesheet" href="boardingpass.css?v=2610132023">
-<script src="config.js?v=2610132023"></script>
+<link rel="stylesheet" href="app.css?v=2610132045">
+<link rel="stylesheet" href="boardingpass.css?v=2610132045">
+<script src="config.js?v=2610132045"></script>
 </head>
 <body>
 
@@ -169,7 +169,7 @@
 
 <dialog id="newDlg" class="small">
   <h3>เปิดภารกิจใหม่</h3>
-  <p class="sub">1 Sector = 1 ภารกิจ = 1 แท็บใน Google Sheet ข้อมูลอื่นกรอกต่อได้ในหน้าผังที่นั่ง</p>
+  <p class="sub">1 Sector = 1 ภารกิจ = 1 แท็บใน Google Sheet ข้อมูลอื่นกรอกต่อได้ในหน้าผังที่นั่ง · ขั้นถัดไปต้อง Login ด้วย Username, Password, เลขบัตรข้าราชการ และวันเดือนปีเกิด</p>
   <div class="ngrid">
     <label class="f"><span>Sector</span><span class="pre"><b>Sector</b><input id="nSector" maxlength="4" inputmode="numeric" placeholder="1"></span></label>
     <label class="f"><span>เที่ยวบินที่</span><input id="nFlight" maxlength="20" class="up" placeholder="RTAF201"></label>
@@ -181,7 +181,7 @@
     <label class="f span2"><span>ชื่อผู้บันทึก</span><input id="nBy" maxlength="60" autocomplete="off"></label>
   </div>
   <p class="err" id="nErr" hidden></p>
-  <div class="acts"><button class="btn" id="nNo" type="button">ยกเลิก</button><button class="btn pri" id="nYes" type="button">เปิดภารกิจ</button></div>
+  <div class="acts"><button class="btn" id="nNo" type="button">ยกเลิก</button><button class="btn pri" id="nYes" type="button">ถัดไป: Login</button></div>
 </dialog>
 
 <dialog id="mpwDlg" class="small">
@@ -218,7 +218,7 @@
 
 <dialog id="bpDlg" class="wide">
   <div class="pvbar">
-    <h3 id="bpTitle">PRINT BOARDING PASS</h3>
+    <div><h3 id="bpTitle">PRINT BOARDING PASS</h3><p class="sub" id="bpSub" style="margin:0"></p></div>
     <div class="acts"><button class="btn" id="bpClose" type="button">ปิด</button><button class="btn gold" id="bpPrint" type="button">พิมพ์</button></div>
   </div>
   <div class="bpwrap">
@@ -263,7 +263,7 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="boardingpass.js?v=2610132023"></script>
-<script src="app.js?v=2610132023"></script>
+<script src="boardingpass.js?v=2610132045"></script>
+<script src="app.js?v=2610132045"></script>
 </body>
 </html>
