@@ -4,6 +4,6 @@
  * ห้ามใส่รหัสผ่านในไฟล์นี้ repo เป็น public ให้ตั้งรหัสใน Apps Script เท่านั้น
  */
 window.SEATPLAN_CONFIG = {
-  API_URL: '',
+  API_URL: 'https://script.google.com/macros/s/AKfycbwtYG_J93kLufFMWBFpPtOyuBg1vHPhi2yulm6eUBm4LWH9KoA4h1p30g7tL9xS1Hcw/exec',
   SHEET_URL: 'https://docs.google.com/spreadsheets/d/1J9o1sZHvwqYpWhzIZitlQyIw88H4iLtucF1iRXQC7IQ/edit?usp=sharing'
 };
