@@ -25,18 +25,19 @@ function route(sector){var p=String(sector||'').toUpperCase().split(/[^A-Z0-9]+/
   var f=p[0]||'',t=p.length>1?p[p.length-1]:'';
   return {fromCode:f,toCode:t,fromCity:CITY[f]||'',toCity:CITY[t]||''}}
 
-/* passenger + mission -> fields shown on the pass */
+/* passenger (rt ft lt / re fe le) + mission -> fields shown on the pass */
+function t(v){return String(v==null?'':v).replace(/\s+/g,' ').trim()}
 function data(p,info,zoneName){
-  var th=[p.rt,p.nt].filter(function(x){return String(x||'').trim()}).join(' ');
-  var en=String(p.ne||'').toUpperCase(),rk=String(p.re||'').toUpperCase();
-  var r=route(info.sector);
+  var th=[p.rt,p.ft,p.lt].map(t).filter(Boolean).join(' ');
+  var en=[p.fe,p.le].map(t).filter(Boolean).join(' ').toUpperCase(),rk=t(p.re).toUpperCase();
+  var r=route(info.route);
   return {
     hasEn:!!en,hasTh:!!th,hasRk:!!en&&!!rk,
     rankAbbr:rk,enFull:en,thFull:th,stubName:en||th,
     fromCode:r.fromCode,toCode:r.toCode,fromCity:r.fromCity,toCity:r.toCity,
-    aircraft:'A340',flight:String(info.flight||'').toUpperCase(),date:longDate(info.date),
-    classEn:String(zoneName||'').toUpperCase(),gate:String(info.gate||'').toUpperCase(),time:String(info.time||''),
-    seat:String(p.seat||'').toUpperCase(),noteTh:String(info.note||'')
+    aircraft:'A340',flight:t(info.flight).toUpperCase(),date:longDate(info.date),
+    classEn:t(zoneName).toUpperCase(),gate:t(info.gate).toUpperCase(),time:t(info.time),
+    seat:t(p.seat).toUpperCase(),noteTh:t(info.note)
   };
 }
 
@@ -89,20 +90,21 @@ function passHTML(d){
    '</section></div>';
 }
 
-/* A4: passes at 7.5 / 90 / 172.5 mm, 3.5 mm from each side; marks show the 6 cut lines
-   (left and right edges + the 4 horizontal edges), the bottom 42 mm strip is waste */
-var TOP=7.5,H=82.5,L=3.5,R=206.5;
+/* A4 (centered): 22.75 top + 3 x 82.5 + 2 x 2 gaps + 22.75 bottom = 297 mm, 3.5 mm each side.
+   Cut marks sit in the margins only: each card gets a mark at its top and bottom edge (6 per full sheet,
+   drawn on both side margins), plus short marks above/below for the left and right edges. */
+var TOP=22.75,H=82.5,GAP=2,L=3.5,R=206.5;
 function sheetHTML(list,paper){
   if(paper==='card')return list.map(function(d){return '<div class="bp-sheet card"><div class="bp-slot">'+passHTML(d)+'</div></div>'}).join('');
   var out='';
   for(var i=0;i<list.length;i+=3){
     var page=list.slice(i,i+3),s='<div class="bp-sheet a4">';
-    page.forEach(function(d,k){s+='<div class="bp-slot" style="top:'+(TOP+k*H)+'mm">'+passHTML(d)+'</div>'});
-    for(var k=0;k<=page.length;k++){var y=TOP+k*H;
-      s+='<i class="bp-cut h" style="left:0;top:'+(y-.075)+'mm"></i><i class="bp-cut h" style="left:207mm;top:'+(y-.075)+'mm"></i>'}
-    var yEnd=TOP+page.length*H;
-    [L,R].forEach(function(x){s+='<i class="bp-cut v" style="left:'+(x-.075)+'mm;top:1mm"></i><i class="bp-cut v" style="left:'+(x-.075)+'mm;top:'+(yEnd+1.5)+'mm"></i>'});
-    s+='<div class="bp-waste">แถบล่าง 42 มม. ตัดทิ้ง · ตัดตามขีดตัดทั้ง 6 แนว (ซ้าย ขวา และเส้นแบ่งบัตร)</div></div>';
+    page.forEach(function(d,k){var y=TOP+k*(H+GAP);
+      s+='<div class="bp-slot" style="top:'+y+'mm">'+passHTML(d)+'</div>';
+      [y,y+H].forEach(function(c){s+='<i class="bp-cut h" style="left:0;top:'+(c-.075)+'mm"></i><i class="bp-cut h" style="left:'+(R+.5)+'mm;top:'+(c-.075)+'mm"></i>'})});
+    var yEnd=TOP+(page.length-1)*(H+GAP)+H;
+    [L,R].forEach(function(x){s+='<i class="bp-cut v" style="left:'+(x-.075)+'mm;top:'+(TOP-12)+'mm"></i><i class="bp-cut v" style="left:'+(x-.075)+'mm;top:'+(yEnd+2)+'mm"></i>'});
+    s+='</div>';
     out+=s;
   }
   return out;

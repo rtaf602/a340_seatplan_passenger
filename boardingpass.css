@@ -60,7 +60,7 @@
 .bpx .sseat{text-align:right}
 .bpx .sseat .val{font:600 21pt/1 var(--latin)}
 
-/* print sheets: A4 holds 3 passes stacked (7.5 mm top, 3.5 mm each side, 42 mm waste strip at the bottom) */
+/* print sheets: A4 holds 3 passes centered (22.75 mm top and bottom, 2 mm between passes, 3.5 mm each side) */
 .bp-sheet{position:relative;background:#fff;overflow:hidden;box-sizing:border-box}
 .bp-sheet.a4{width:210mm;height:297mm}
 .bp-sheet.card{width:203mm;height:82.5mm}
@@ -69,7 +69,5 @@
 .bp-cut{position:absolute;background:#000}
 .bp-cut.h{height:.15mm;width:3mm}
 .bp-cut.v{width:.15mm;height:5mm}
-.bp-waste{position:absolute;left:3.5mm;right:3.5mm;top:258mm;height:34mm;display:flex;align-items:center;justify-content:center;
-  font:400 8pt/1.4 "Sarabun",sans-serif;color:#9aa3ad;letter-spacing:.04em;text-align:center}
 .bp-scale{transform-origin:0 0}
 .bp-frame{box-shadow:0 6px 20px rgba(14,29,60,.25);overflow:hidden;flex:none}
