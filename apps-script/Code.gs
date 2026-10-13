@@ -452,7 +452,9 @@ function opLoad_(ctx, b) {
   const st = readMission_(m.sh);
   let status = {}, statusError = '';
   try { status = adminStatus_(); } catch (err) { statusError = String(err && err.message || err); }
-  const history = readLog_(m.sh, 150).map(function (r) { return [r[0], r[2], r[3], r[4], r[5], r[6]]; });
+  // รายชื่อลูกเรือเห็นได้เฉพาะคนที่ Login ADMIN: ซ่อนประวัติการเพิ่ม / แก้ / ลบลูกเรือจากผู้ใช้ทั่วไป
+  const history = readLog_(m.sh, 300).filter(function (r) { return isAdmin || !/ลูกเรือ/.test(r[3]) || /^กั้นที่นั่งลูกเรือ/.test(r[3]); })
+    .slice(0, 150).map(function (r) { return [r[0], r[2], r[3], r[4], r[5], r[6]]; });
   return {
     ok: true, id: m.ix.id, tab: m.sh.getName(), mstatus: m.ix.status, closeInfo: m.ix.closeInfo,
     info: st.info, crew: st.crew, pax: st.pax, crewPax: isAdmin ? st.crewPax : undefined, admin: isAdmin ? ctx.admin : '',
