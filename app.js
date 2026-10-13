@@ -192,14 +192,13 @@ var gsiLoaded=null;
 function jwtEmail(t){try{var b=t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');return JSON.parse(decodeURIComponent(escape(atob(b)))).email||''}catch(e){return ''}}
 /* step 1 (Google) -> step 2 (PIN): highlight the step the user is on */
 function gsiStep(){var ok=!!gsiCred;
-  $('gsiBox').classList.toggle('done',ok);$('gsiBox').classList.toggle('now',!ok);$('pinBox').classList.toggle('now',ok);
-  $('gNum1').textContent=ok?'✓':'1';$('gsiNote').hidden=ok;
+  $('gsiBox').classList.toggle('done',ok);$('gNum1').textContent=ok?'✓':'1.';
 }
 function initGsi(){
   if(!gsiLoaded)gsiLoaded=new Promise(function(ok,no){var s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=ok;s.onerror=no;document.head.appendChild(s)});
   gsiLoaded.then(function(){
     google.accounts.id.initialize({client_id:clientId,callback:function(r){gsiCred=r.credential||'';
-      var e=jwtEmail(gsiCred);$('gsiOk').textContent=e?'✓ Sign in แล้ว: '+e:'✓ Sign in แล้ว';$('gsiOk').hidden=!gsiCred;$('gateErr').hidden=true;gsiStep();$('gatePin').focus()},
+      var e=jwtEmail(gsiCred);$('gsiOk').textContent=e?'Sign in แล้ว: '+e:'Sign in แล้ว';$('gsiOk').hidden=!gsiCred;$('gateErr').hidden=true;gsiStep();$('gatePin').focus()},
       auto_select:true,cancel_on_tap_outside:false});
     $('gsiBtn').textContent='';
     google.accounts.id.renderButton($('gsiBtn'),{theme:'outline',size:'large',text:'signin_with',shape:'rectangular',width:300});

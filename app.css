@@ -219,9 +219,9 @@ dialog.wide[open]{display:flex;flex-direction:column}
 /* PIN gate */
 .gate{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:16px}
 .gatebox{width:min(360px,100%);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px;display:flex;flex-direction:column;gap:10px}
-.gatelogo{width:84px;align-self:center}
-.gatebox h2{margin:0;font-size:20px;text-align:center}.gatebox p{margin:0;color:var(--muted);text-align:center}
-#gatePin{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);font-size:18px;text-align:center;letter-spacing:.3em}
+.gatelogo{width:64px;align-self:center}
+.gatebox h2{margin:0;font-size:18px;text-align:center}.gatebox>p{margin:0 0 4px;color:var(--muted);text-align:center;font-size:13px}
+#gatePin{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);font-size:15px}
 
 /* report used by PREVIEW and PDF: always light, fixed A4-ish width */
 .report{
@@ -303,13 +303,8 @@ dialog.wide[open]{display:flex;flex-direction:column}
 /* boarding pass dialog extras */
 .lbl{font-size:12px;color:var(--muted);font-weight:600}
 .bpzones{display:flex;flex-direction:column;gap:4px}
-.gsiok{font-size:13px;color:var(--ok);font-weight:600;text-align:center;margin:0;overflow-wrap:anywhere}
-.gstep{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--bg)}
-.gstep.done{border-color:var(--ok);background:var(--ok-soft)}
-.gstep.now{border:2px solid var(--accent)}
-.ghead{display:flex;align-items:center;gap:8px;font-size:15px}
-.gnum{width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex:none}
-.gstep.done .gnum{background:var(--ok);color:#fff}
-.gnote{font-size:13px;color:var(--muted);margin:0;text-align:left!important}
-.gatebox{width:min(400px,100%)}
-#gsiBtn{display:flex;justify-content:center;min-height:44px}
+.gsiok{font-size:12px;color:var(--ok);margin:0;overflow-wrap:anywhere}
+.gstep{display:flex;flex-direction:column;gap:6px}
+.glbl{font-size:13px;font-weight:600;color:var(--muted)}
+#gsiBox.done .glbl{color:var(--ok)}
+#gsiBtn{display:flex;justify-content:center;min-height:40px}

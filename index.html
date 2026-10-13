@@ -6,9 +6,9 @@
 <title>A340 Passenger Seat Plan</title>
 <link rel="icon" href="emblem.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Barlow+Semi+Condensed:wght@400;500;600&family=Sarabun:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="app.css">
-<link rel="stylesheet" href="boardingpass.css">
-<script src="config.js"></script>
+<link rel="stylesheet" href="app.css?v=2610132020">
+<link rel="stylesheet" href="boardingpass.css?v=2610132020">
+<script src="config.js?v=2610132020"></script>
 </head>
 <body>
 
@@ -248,13 +248,12 @@
     <h2 id="gateT">SEAT PLAN A340</h2>
     <p>ผังที่นั่งผู้โดยสาร</p>
     <div class="gstep" id="gsiBox" hidden>
-      <div class="ghead"><span class="gnum" id="gNum1">1</span><b>Sign in with Google Account</b></div>
-      <p class="gnote" id="gsiNote">กดปุ่มด้านล่างแล้วเลือกบัญชี Google ของคุณ (ใช้บันทึกอีเมลในประวัติการใช้งาน)</p>
+      <label class="glbl"><span id="gNum1">1.</span> Sign in with Google</label>
       <div id="gsiBtn"></div>
       <p class="gsiok" id="gsiOk" hidden></p>
     </div>
     <div class="gstep" id="pinBox">
-      <div class="ghead" id="pinHead" hidden><span class="gnum">2</span><b>ใส่รหัสผ่านเข้าใช้งาน</b></div>
+      <label class="glbl" for="gatePin" id="pinHead" hidden>2. รหัสผ่าน</label>
       <input id="gatePin" type="password" inputmode="numeric" autocomplete="off" placeholder="รหัสผ่าน">
     </div>
     <p class="err" id="gateErr" hidden></p>
@@ -264,7 +263,7 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="boardingpass.js"></script>
-<script src="app.js"></script>
+<script src="boardingpass.js?v=2610132020"></script>
+<script src="app.js?v=2610132020"></script>
 </body>
 </html>
