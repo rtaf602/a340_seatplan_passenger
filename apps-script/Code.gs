@@ -28,7 +28,7 @@ const OPT = {
   sessionHours: 12,        // เข้าหน้ารายการแล้วใช้ได้นานเท่านี้ (ปิด / รีเฟรชหน้าเว็บต้องใส่ใหม่ เพราะหน้าเว็บไม่เก็บไว้)
   missionHours: 12,        // ใส่รหัสภารกิจแล้วใช้ได้นานเท่านี้ (ออกจากภารกิจแล้วกลับเข้าใหม่ต้องใส่ใหม่)
   adminHours: 2,           // Login หน้า ADMIN ใช้ได้นานเท่านี้
-  pinMaxFails: 10, pinLockMinutes: 15,
+  pinMaxFails: 10, pinLockMinutes: 15,   // รหัสเว็บไซต์: ผิด 10 ครั้ง พัก 15 นาที ผิดอีก 10 ครั้ง บล็อก (ปลดในแท็บ LOCKED EMAILS)
   mpwMaxFails: 5, mpwLockMinutes: 15,
   loginMaxFails: 5, loginPauseMinutes: 60,
   minMissionPw: 4,
@@ -39,6 +39,7 @@ const MSG = {
   login: 'ข้อมูลไม่ถูกต้อง หรือบัญชียังไม่พร้อมใช้งาน ให้ติดต่อ Admin',
   pin: 'รหัสผ่านไม่ถูกต้อง',
   pinLocked: 'ใส่รหัสผ่านผิดหลายครั้ง ให้รอ ' + OPT.pinLockMinutes + ' นาทีแล้วลองใหม่',
+  pinBlocked: 'บัญชี Google นี้ใส่รหัสผ่านผิดหลายครั้งและถูกบล็อก ให้ติดต่อ Admin',
   mpw: 'รหัสภารกิจไม่ถูกต้อง',
   mpwLocked: 'ใส่รหัสภารกิจผิดหลายครั้ง ให้รอ ' + OPT.mpwLockMinutes + ' นาทีแล้วลองใหม่',
   session: 'หมดเวลาใช้งาน ให้ใส่รหัสผ่านเข้าใช้งานใหม่',
@@ -84,6 +85,10 @@ const UL_HOME = 'หน้าแรก', UL_HEAD = ['Timestamp', 'Email', 'ผ�
 const AL_LOGIN = 'HISTORY LOGIN DATA', AL_LOGIN_HEAD = ['Timestamp', 'Email', 'Username', 'Event', 'ใช้สำหรับ', 'ภารกิจ', 'รายละเอียด'];
 const AL_ACT = 'ADMIN ACTIVITY', AL_ACT_HEAD = ['Timestamp', 'Email', 'Username', 'ภารกิจ', 'Action', 'Detail'];
 const AL_LOCK = 'LOCKED USERS', AL_LOCK_HEAD = ['Username', 'สถานะ', 'จำนวนครั้งที่ผิด', 'พักถึงเวลา', 'รอบ', 'อัปเดตล่าสุด', 'วิธีปลดบล็อก'];
+const AL_PINLOCK = 'LOCKED EMAILS', AL_PINLOCK_HEAD = ['Email', 'สถานะ', 'จำนวนครั้งที่ผิด', 'พักถึงเวลา', 'รอบ', 'อัปเดตล่าสุด', 'วิธีปลดบล็อก'];
+// ล็อก 2 แบบใช้กติกาเดียวกัน: ผิดครบ max ครั้ง พัก pause นาที แล้วผิดอีก max ครั้ง บล็อกจนแอดมินแก้สถานะเป็น ACTIVE
+const LOCK_USER = { tab: AL_LOCK, head: AL_LOCK_HEAD, max: function () { return OPT.loginMaxFails; }, pause: function () { return OPT.loginPauseMinutes; } };
+const LOCK_PIN = { tab: AL_PINLOCK, head: AL_PINLOCK_HEAD, max: function () { return OPT.pinMaxFails; }, pause: function () { return OPT.pinLockMinutes; } };
 
 // LOGIN DATABASE: หาคอลัมน์จากชื่อหัวคอลัมน์ (เหมือนระบบ eadmin)
 const COL = { rank: 'ยศ', name: 'ชื่อ-สกุล', pos: 'ตำแหน่งงาน', idGov: 'ID Card ขรก.', idCit: 'ID Card ปชช.', birth: 'BIRTH DATE', role: 'Role', username: 'Username', salt: 'Salt', hash: 'hash', end: 'วันสิ้นสุดการใช้งาน' };
@@ -199,18 +204,32 @@ function opEnter_(ctx, b) {
     email = googleEmail_(String(b.credential || ''), cid);
     if (!email) throw err_('google', MSG.google);
   }
-  const cache = CacheService.getScriptCache(), key = 'pf:' + hex_(sha256_(utf8_(email || 'anon'))).slice(0, 24);
-  const fails = Number(cache.get(key)) || 0;
-  if (fails >= OPT.pinMaxFails) { userLog_(ctx, null, email, '', 'ใส่รหัสเข้าใช้งาน (ถูกพัก)', 'ใส่ผิดเกิน ' + OPT.pinMaxFails + ' ครั้ง'); throw err_('pin_locked', MSG.pinLocked); }
   const pin = prop_(PROP.pin);
   if (!pin) throw err_('config', 'ยังไม่ได้ตั้งรหัสเข้าใช้งาน (accessPin) ใน setup()');
-  if (!same_(String(b.pin || ''), pin)) {
-    cache.put(key, String(fails + 1), OPT.pinLockMinutes * 60);
-    userLog_(ctx, null, email, '', 'ใส่รหัสเข้าใช้งานผิด', 'ครั้งที่ ' + (fails + 1));
-    Utilities.sleep(400);
-    throw err_('pin', MSG.pin);
+  const ok = same_(String(b.pin || ''), pin);
+  if (email) {
+    // Sign in with Google แล้ว: นับผิดต่ออีเมลในแท็บ LOCKED EMAILS (ไฟล์ Admin Page)
+    withLock_(function () {
+      const st = lockState_(email, ctx.now, LOCK_PIN);
+      if (st.status === 'BLOCKED') { userLog_(ctx, null, email, '', 'ใส่รหัสเข้าใช้งาน (ถูกบล็อก)', 'ให้แอดมินแก้สถานะเป็น ACTIVE ในแท็บ ' + AL_PINLOCK); throw err_('pin_blocked', MSG.pinBlocked); }
+      if (st.status === 'PAUSED') { userLog_(ctx, null, email, '', 'ใส่รหัสเข้าใช้งาน (ถูกพัก)', 'พักถึง ' + fmtTime_(new Date(st.until))); throw err_('pin_locked', 'ใส่รหัสผ่านผิดหลายครั้ง ให้รอถึง ' + fmtTime_(new Date(st.until)).slice(11, 16) + ' น. แล้วลองใหม่'); }
+      if (ok) { if (st.row && (st.dirty || st.fails || st.round || st.status !== 'ACTIVE')) lockOk_(email, st, ctx.now, LOCK_PIN); return; }
+      const r = lockFail_(email, st, ctx.now, LOCK_PIN);
+      userLog_(ctx, null, email, '', 'ใส่รหัสเข้าใช้งานผิด', 'ครั้งที่ ' + r.fails + (r.round ? ' (หลังพัก)' : '') + (r.status === 'PAUSED' ? ' · พัก ' + OPT.pinLockMinutes + ' นาที' : r.status === 'BLOCKED' ? ' · บล็อก (ปลดในแท็บ ' + AL_PINLOCK + ')' : ''));
+    });
+    if (!ok) { Utilities.sleep(400); throw err_('pin', MSG.pin); }
+  } else {
+    // ยังไม่ได้ตั้ง Sign in with Google: ไม่มีอีเมลให้นับ จึงพักชั่วคราวรวมทุกคน (ไม่บล็อกถาวร)
+    const cache = CacheService.getScriptCache(), key = 'pf:anon';
+    const fails = Number(cache.get(key)) || 0;
+    if (fails >= OPT.pinMaxFails) throw err_('pin_locked', MSG.pinLocked);
+    if (!ok) {
+      cache.put(key, String(fails + 1), OPT.pinLockMinutes * 60);
+      userLog_(ctx, null, '', '', 'ใส่รหัสเข้าใช้งานผิด', 'ครั้งที่ ' + (fails + 1));
+      Utilities.sleep(400);
+      throw err_('pin', MSG.pin);
+    }
   }
-  cache.remove(key);
   userLog_(ctx, null, email, '', 'เข้าใช้งาน', email ? 'Sign in with Google' : 'ไม่ได้ Sign in with Google');
   return { ok: true, s: sign_({ k: 's', e: email, x: ctx.now + OPT.sessionHours * 3600e3 }), email: email };
 }
@@ -584,7 +603,7 @@ function credCheck_(ctx, cred, purpose, ix) {
     } else if (!known) detail = 'ไม่พบ Username';
     throw fail(ev, detail);
   }
-  if (lock && (lock.row && (lock.fails || lock.round || lock.status !== 'ACTIVE'))) lockOk_(username, lock, ctx.now);
+  if (lock && (lock.row && (lock.dirty || lock.fails || lock.round || lock.status !== 'ACTIVE'))) lockOk_(username, lock, ctx.now);
   loginLog_(ctx, username, 'LOGIN_OK', purpose, mission, '');
   return p;
 }
@@ -719,44 +738,46 @@ function opAdminSave_(ctx, b) {
   });
 }
 
-// ---------- LOCKED USERS (ไฟล์ Admin Page) ----------
-function lockSheet_() { return logTab_(prop_(PROP.alog), AL_LOCK, AL_LOCK_HEAD); }
-// สถานะ: ACTIVE (ปกติ) · PAUSED (ผิดครบ 5 ครั้ง พัก 60 นาที) · LAST_TRY (พักครบแล้ว เหลือโอกาสอีก 5 ครั้ง) · BLOCKED (แอดมินต้องปลด)
-function lockState_(username, now) {
-  const sh = lockSheet_(), n = sh.getLastRow();
+// ---------- LOCKED USERS / LOCKED EMAILS (ไฟล์ Admin Page) ----------
+// สถานะ: ACTIVE (ปกติ) · PAUSED (ผิดครบ พักชั่วคราว) · LAST_TRY (พักครบแล้ว เหลือโอกาสอีกรอบ) · BLOCKED (แอดมินต้องปลด)
+function lockSheet_(kind) { kind = kind || LOCK_USER; return logTab_(prop_(PROP.alog), kind.tab, kind.head); }
+function lockState_(key, now, kind) {
+  const sh = lockSheet_(kind), n = sh.getLastRow();
   if (n > 1) {
     const v = dv_(sh.getRange(2, 1, n - 1, 5));
     for (let i = 0; i < v.length; i++) {
-      if (str_(v[i][0]).toLowerCase() !== username) continue;
+      if (str_(v[i][0]).toLowerCase() !== key) continue;
       const st = { row: i + 2, status: str_(v[i][1]).toUpperCase() || 'ACTIVE', fails: Number(v[i][2]) || 0, until: parseTime_(v[i][3]), round: Number(v[i][4]) || 0 };
       if (['ACTIVE', 'PAUSED', 'LAST_TRY', 'BLOCKED'].indexOf(st.status) < 0) st.status = 'ACTIVE';
       // ระบบไม่เคยเขียน ACTIVE คู่กับรอบที่ 2: แปลว่าแอดมินแก้สถานะเป็น ACTIVE เพื่อปลดบล็อก เริ่มนับใหม่
-      if (st.status === 'ACTIVE' && st.round > 0) { st.round = 0; st.fails = 0; st.until = 0; }
+      if (st.status === 'ACTIVE' && st.round > 0) { st.round = 0; st.fails = 0; st.until = 0; st.dirty = true; }
       if (st.status === 'PAUSED' && st.until <= now) { st.status = 'LAST_TRY'; st.round = 1; st.fails = 0; st.until = 0; }
       return st;
     }
   }
   return { row: 0, status: 'ACTIVE', fails: 0, until: 0, round: 0 };
 }
-function lockWrite_(username, st, now) {
-  const sh = lockSheet_();
-  const note = st.status === 'BLOCKED' ? 'แก้ช่องสถานะเป็น ACTIVE เพื่อปลดบล็อก' : st.status === 'PAUSED' ? 'พักอัตโนมัติ ' + OPT.loginPauseMinutes + ' นาที' : '';
-  const row = [safe_(username), st.status, String(st.fails), st.until ? fmtTime_(new Date(st.until)) : '', String(st.round), fmtTime_(new Date(now)), note];
+function lockWrite_(key, st, now, kind) {
+  kind = kind || LOCK_USER;
+  const sh = lockSheet_(kind);
+  const note = st.status === 'BLOCKED' ? 'แก้ช่องสถานะเป็น ACTIVE เพื่อปลดบล็อก' : st.status === 'PAUSED' ? 'พักอัตโนมัติ ' + kind.pause() + ' นาที' : '';
+  const row = [safe_(key), st.status, String(st.fails), st.until ? fmtTime_(new Date(st.until)) : '', String(st.round), fmtTime_(new Date(now)), note];
   if (st.row) sh.getRange(st.row, 1, 1, row.length).setValues([row]);
   else sh.appendRow(row);
 }
-function lockFail_(username, st, now) {
+function lockFail_(key, st, now, kind) {
+  kind = kind || LOCK_USER;
   st.fails++;
   const out = { fails: st.fails, round: st.round, status: st.status };
-  if (st.fails >= OPT.loginMaxFails) {
+  if (st.fails >= kind.max()) {
     if (st.round >= 1) { st.status = 'BLOCKED'; st.until = 0; }
-    else { st.status = 'PAUSED'; st.until = now + OPT.loginPauseMinutes * 60000; st.round = 1; st.fails = 0; }
+    else { st.status = 'PAUSED'; st.until = now + kind.pause() * 60000; st.round = 1; st.fails = 0; }
     out.status = st.status;
   }
-  lockWrite_(username, st, now);
+  lockWrite_(key, st, now, kind);
   return out;
 }
-function lockOk_(username, st, now) { st.status = 'ACTIVE'; st.fails = 0; st.round = 0; st.until = 0; lockWrite_(username, st, now); }
+function lockOk_(key, st, now, kind) { st.status = 'ACTIVE'; st.fails = 0; st.round = 0; st.until = 0; lockWrite_(key, st, now, kind); }
 // 'dd/MM/yyyy HH:mm:ss' (เวลาไทย) → ms
 function parseTime_(s) {
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4}) (\d{1,2}):(\d{2}):(\d{2})$/.exec(str_(s));
@@ -985,7 +1006,7 @@ function setup() {
   logTab_(prop_(PROP.ulog), UL_HOME, UL_HEAD);
   logTab_(prop_(PROP.alog), AL_LOGIN, AL_LOGIN_HEAD);
   logTab_(prop_(PROP.alog), AL_ACT, AL_ACT_HEAD);
-  lockSheet_();
+  lockSheet_(LOCK_USER); lockSheet_(LOCK_PIN);
   try { UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=x', { muteHttpExceptions: true }); } catch (e) { /* ขอสิทธิ์ UrlFetch ไว้ล่วงหน้า */ }
   Logger.log('ภารกิจในแท็บ ' + INDEX_SHEET + ': ' + ix.rows.length + ' · ยังไม่มีรหัสภารกิจ: ' + ix.rows.filter(function (r) { return !r.pw; }).length);
   Logger.log(prop_(PROP.cid) ? 'เปิดใช้ Sign in with Google แล้ว' : 'ยังไม่ได้ใส่ googleClientId: เข้าใช้งานได้โดยไม่ต้อง Sign in with Google (ประวัติจะไม่มีอีเมล)');

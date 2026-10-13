@@ -20,6 +20,14 @@
 5. **Boarding Pass** 203 × 82.5 มม. A4 ได้ 3 ใบ/แผ่น จัดกึ่งกลาง (ขอบบน-ล่าง 22.75 มม., ข้าง 3.5 มม., ห่างกัน 2 มม., รอยตัดอยู่ในขอบกระดาษ)
    ในหน้าต่างพิมพ์ให้ตั้ง **Scale 100%**, **Margins: None** และเปิด **Background graphics**
 
+## การล็อกเมื่อใส่รหัสผิด
+
+| รหัส | กติกา | ปลดบล็อก |
+|---|---|---|
+| รหัสผ่านเว็บไซต์ (นับต่ออีเมล Google) | ผิด 10 ครั้ง พัก 15 นาที · ผิดอีก 10 ครั้ง บล็อก | แท็บ `LOCKED EMAILS` |
+| Username / Password (LOGIN DATABASE) | ผิด 5 ครั้ง พัก 60 นาที · ผิดอีก 5 ครั้ง บล็อก | แท็บ `LOCKED USERS` |
+| รหัสภารกิจ | ผิด 5 ครั้ง พัก 15 นาที (ปลดเอง) | — |
+
 ## ไฟล์ Google Sheet ที่ใช้
 
 | ไฟล์ | ใช้ทำอะไร |
@@ -28,7 +36,7 @@
 | Seat Plan 340 (For Admin) | สภาพที่นั่ง จอ และ NOTE (อ่านอย่างเดียว) |
 | LOGIN DATABASE | ตรวจ Username / Password / เลขบัตร / วันเกิด (อ่านอย่างเดียว) |
 | Passenger Seat Plan A340 User Page | ประวัติผู้ใช้: แท็บ `หน้าแรก` และแท็บละภารกิจ |
-| Passenger Seat Plan A340 Admin Page | `HISTORY LOGIN DATA`, `ADMIN ACTIVITY`, `LOCKED USERS` (ปลดล็อกโดยแก้สถานะเป็น `ACTIVE`) |
+| Passenger Seat Plan A340 Admin Page | `HISTORY LOGIN DATA`, `ADMIN ACTIVITY`, `LOCKED USERS` (Username), `LOCKED EMAILS` (อีเมลที่ใส่รหัสเว็บไซต์ผิด) — ปลดบล็อกโดยแก้ช่องสถานะเป็น `ACTIVE` |
 
 ## ติดตั้ง / อัปเดตระบบหลังบ้าน
 
