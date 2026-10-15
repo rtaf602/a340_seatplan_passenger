@@ -6,9 +6,9 @@
 <title>A340 Passenger Seat Plan</title>
 <link rel="icon" href="emblem.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Barlow+Semi+Condensed:wght@400;500;600&family=Sarabun:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="app.css?v=2610151832">
-<link rel="stylesheet" href="boardingpass.css?v=2610151832">
-<script src="config.js?v=2610151832"></script>
+<link rel="stylesheet" href="app.css?v=2610151845">
+<link rel="stylesheet" href="boardingpass.css?v=2610151845">
+<script src="config.js?v=2610151845"></script>
 </head>
 <body>
 
@@ -55,6 +55,7 @@
       <button class="btn pri" id="bSave" type="button">SAVE</button>
       <button class="btn" id="bPreview" type="button">PREVIEW</button>
       <button class="btn" id="bPdf" type="button">EXPORT TO PDF</button>
+      <button class="btn" id="bXls" type="button">EXPORT TO EXCEL</button>
       <button class="btn gold" id="bBp" type="button">PRINT BOARDING PASS</button>
     </div>
     <div class="tools admtools" id="admTools" hidden>
@@ -63,6 +64,7 @@
       <button class="btn pri" id="aSave" type="button">SAVE</button>
       <button class="btn" id="aPreview" type="button">PREVIEW</button>
       <button class="btn" id="aPdf" type="button">EXPORT TO PDF</button>
+      <button class="btn" id="aXls" type="button">EXPORT TO EXCEL</button>
       <button class="btn gold" id="aBp" type="button">PRINT BOARDING PASS</button>
       <button class="btn" id="aLogout" type="button">LOGOUT</button>
     </div>
@@ -161,6 +163,12 @@
   <div class="acts"><button class="btn" id="wNo" type="button">ยกเลิก</button><button class="btn pri" id="wSave" type="button">SAVE ก่อน แล้วทำต่อ</button><button class="btn" id="wGo" type="button"></button></div>
 </dialog>
 
+<dialog id="xlDlg" class="small">
+  <h3>EXPORT TO EXCEL</h3>
+  <p class="sub" id="xlSub"></p>
+  <div class="acts"><button class="btn" id="xlNo" type="button">ยกเลิก</button><button class="btn" id="xlBlank" type="button">ฟอร์มเปล่า (ไว้กรอกเอง)</button><button class="btn pri" id="xlFull" type="button">มีรายชื่อที่ SAVE แล้ว</button></div>
+</dialog>
+
 <dialog id="stale" class="small">
   <h3>⚠ มีผู้ SAVE ข้อมูลไปก่อน</h3>
   <p class="sub" id="stMsg"></p>
@@ -211,7 +219,7 @@
 <dialog id="pv" class="wide">
   <div class="pvbar">
     <h3 id="pvTitle">PREVIEW ผังที่นั่ง</h3>
-    <div class="acts"><button class="btn" id="pvClose" type="button">ปิด</button><button class="btn pri" id="pvPdf" type="button">EXPORT TO PDF</button></div>
+    <div class="acts"><button class="btn" id="pvClose" type="button">ปิด</button><button class="btn" id="pvXls" type="button">EXPORT TO EXCEL</button><button class="btn pri" id="pvPdf" type="button">EXPORT TO PDF</button></div>
   </div>
   <div class="pvbody" id="pvBody"></div>
 </dialog>
@@ -263,7 +271,8 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="boardingpass.js?v=2610151832"></script>
-<script src="app.js?v=2610151832"></script>
+<script src="excel.js?v=2610151845"></script>
+<script src="boardingpass.js?v=2610151845"></script>
+<script src="app.js?v=2610151845"></script>
 </body>
 </html>

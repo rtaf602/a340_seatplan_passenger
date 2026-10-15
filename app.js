@@ -127,8 +127,8 @@ function fmtTH(iso){if(!iso)return '';var d=new Date(iso);if(isNaN(d))return Str
 /* "13/10/2026 20:20:05" (from the sheet) -> "13 OCT 26 / 20:20 TH-LT" */
 function fmtSheet(s){var m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/.exec(String(s||''));
   return m?(+m[1])+' '+MON[+m[2]-1]+' '+m[3].slice(2)+' / '+p2(+m[4])+':'+m[5]+' TH-LT':String(s||'')}
-function fileName(kind){var b=bkk(),fl=String(useSavedInfo('flight')||'').toUpperCase().replace(/[\\\/:*?"<>|]+/g,'-').trim()||'NO-FLIGHT';
-  return String(b.y).slice(2)+p2(b.M)+p2(b.d)+'_'+p2(b.h)+'.'+p2(b.m)+' TH-LT_'+fl+'_Seat Plan A340 ('+kind+').pdf'}
+function fileName(kind,ext){var b=bkk(),fl=String(useSavedInfo('flight')||'').toUpperCase().replace(/[\\\/:*?"<>|]+/g,'-').trim()||'NO-FLIGHT';
+  return String(b.y).slice(2)+p2(b.M)+p2(b.d)+'_'+p2(b.h)+'.'+p2(b.m)+' TH-LT_'+fl+'_Seat Plan A340 ('+kind+').'+(ext||'pdf')}
 function useSavedInfo(k){var u=useSaved;useSaved=true;try{return getInfo(k)}finally{useSaved=u}}
 /* "1 OCT 26" -> sortable number 261001 */
 function dateNum(v){var m=/^(\d{1,2})\s+([A-Z]{3})\s+(\d{2})$/.exec(String(v||'').toUpperCase().trim());
@@ -767,6 +767,53 @@ function exportPdf(mode){
   .catch(function(e){if(window.console)console.error('EXPORT TO PDF',e);toast('สร้าง PDF ไม่สำเร็จ ลองอีกครั้ง',true)})
   .then(function(){wrap.remove();busy=false});
 }
+
+/* ----- EXPORT TO EXCEL (แก้ไขได้ หน้าตาและการแบ่งหน้าเหมือน PDF) ----- */
+function excelModel(mode,blank){
+  var crewMode=mode==='crew',set=crewRows(getCrew()),stats=zoneStats();
+  var seatObj=function(id,label,mon){var st=status(id),crew=!!set[SEAT[id].row];
+    var p=crew?(crewMode?getCrewPax(id):null):getPax(id);
+    return {label:label,s:st.s,mon:mon?st.m:null,crew:crew,name:p?shortName(p):''}};
+  var zones=ZONES.map(function(z){var v=stats[z.key],free=blank?(v.t-v.crew-v.bad):v.free;
+    return {title:z.title,free:free,items:z.items.map(function(it){
+      if(it.cc)return {type:'cc',crew:false,seat:seatObj('CC','CC',true)};
+      if(it.ovh)return {type:'ovh',crew:!!set[it.ovh],mon:['L','C','R'].map(function(p){return status('MON-'+it.ovh+'-'+p).m})};
+      return {type:'row',n:String(it.n),crew:!!set[String(it.n)],groups:it.g.map(function(g){return g.split('').map(function(L){return L==='_'?null:seatObj(it.n+L,L,it.mon)})})};
+    })}});
+  var b=bkk(),ls=M.lastSave;
+  var meta=['ออกรายงาน '+b.d+' '+MON[b.M-1]+' '+String(b.y).slice(2)+' / '+p2(b.h)+':'+p2(b.m)+' TH-LT',
+    ls&&ls.at?'SAVE ล่าสุด '+[ls.by,fmtTH(ls.at)].filter(Boolean).join(' · '):'ยังไม่เคย SAVE','สภาพที่นั่ง/จอ ตามไฟล์ Seat Plan 340 (For Admin)'].join('   ·   ');
+  return {
+    title:(crewMode?'SEAT PLAN A340 · ผังที่นั่งลูกเรือ (CREW)':'SEAT PLAN A340 · ผังที่นั่งผู้โดยสาร')+(blank?' · ฟอร์มเปล่า':''),
+    sheetName:crewMode?'Seat Plan (CREW)':'Seat Plan (Pax)',docTitle:'Seat Plan A340',blank:blank,blankRows:32,
+    info:[[{label:'AIRCRAFT',val:'A340'},{label:'SECTOR',val:getInfo('sectorNo')?'Sector '+getInfo('sectorNo'):''},{label:'MISSION / ภารกิจ',val:getInfo('name'),span:2}],
+      [{label:'FLIGHT',val:getInfo('flight')},{label:'ROUTE',val:getInfo('route')},{label:'DATE',val:getInfo('date')},{label:'GATE',val:getInfo('gate')}],
+      [{label:'BOARDING TIME',val:getInfo('time')}]],
+    meta:meta,
+    legend:'สัญลักษณ์: ช่องสีฟ้า = มีชื่อแล้ว · ช่องแดงอ่อน × = ที่นั่งใช้ไม่ได้ · เส้นเหลืองหนาใต้ช่อง ! = ที่นั่งขัดข้องแต่ใช้ได้ · เส้นบนช่อง / แถบ Monitor สีเขียว เหลือง แดง = จอ ปกติ เสื่อม เสีย · กรอบแดง CREW ZONE = กันไว้ให้ลูกเรือ'+(blank?' · ช่องใต้ตัวอักษรที่นั่งไว้กรอกชื่อ':''),
+    zones:zones,listTitle:crewMode?'รายชื่อลูกเรือ':'รายชื่อผู้โดยสาร',
+    list:manifestRows(crewMode?'crew':'pax').map(function(r){return {id:r.id,zone:r.zone,th:thFull(r.p),en:enFull(r.p)}}),
+    footer:[getInfo('flight'),getInfo('date'),'Seat Plan A340'].filter(Boolean).join(' · ')
+  };
+}
+var xlMode='pax';
+function askExcel(mode){xlMode=mode;$('xlSub').textContent=(mode==='crew'?'ผังที่นั่งลูกเรือ':'ผังที่นั่งผู้โดยสาร')+' แบบแก้ไขได้ หน้าตาและการแบ่งหน้าเหมือนไฟล์ PDF';showDlg($('xlDlg'))}
+$('xlNo').addEventListener('click',function(){hideDlg($('xlDlg'))});
+$('xlFull').addEventListener('click',function(){hideDlg($('xlDlg'));exportExcel(xlMode,false)});
+$('xlBlank').addEventListener('click',function(){hideDlg($('xlDlg'));exportExcel(xlMode,true)});
+function exportExcel(mode,blank){
+  if(busy||!M)return;busy=true;toast('กำลังสร้างไฟล์ Excel…');
+  var model,name;useSaved=true;
+  try{model=excelModel(mode,blank);name=fileName((mode==='crew'?'CREW':'Pax')+(blank?' Blank Form':''),'xlsx')}finally{useSaved=false}
+  loadLib('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')
+  .then(function(){return window.SeatExcel.build(model)})
+  .then(function(blob){offerFile(name,blob,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');logEvent('EXPORT TO EXCEL',name)})
+  .catch(function(e){if(window.console)console.error('EXPORT TO EXCEL',e);toast('สร้างไฟล์ Excel ไม่สำเร็จ ลองอีกครั้ง',true)})
+  .then(function(){busy=false});
+}
+$('bXls').addEventListener('click',function(){if(M)guard('EXPORT TO EXCEL',function(){askExcel('pax')})});
+$('aXls').addEventListener('click',function(){if(M)guard('EXPORT TO EXCEL',function(){askExcel('crew')})});
+$('pvXls').addEventListener('click',function(){askExcel(pvMode)});
 
 /* ----- ADMIN ----- */
 (function(){var f=$('crewFront'),r=$('crewRear');

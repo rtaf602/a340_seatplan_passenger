@@ -16,6 +16,7 @@
 3. **ผังที่นั่ง**: แตะที่นั่งเพื่อกรอก ยศ/ชื่อ/สกุล ภาษาไทย และภาษาอังกฤษ ที่นั่งแสดงชื่อย่อ (มานะ พ. / Mana P.)
    - ปุ่ม **CLEAR** (ล้างเฉพาะรายชื่อ) · **SAVE** (ต้องกรอกชื่อผู้บันทึกทุกครั้ง) · **PREVIEW** · **EXPORT TO PDF** · **PRINT BOARDING PASS**
    - ถ้ามีผู้ SAVE ไปก่อน ระบบไม่บันทึกทับ ให้กด “โหลดข้อมูลล่าสุด” แล้ว SAVE ใหม่
+   - **EXPORT TO EXCEL** (หน้าผู้โดยสาร, หน้า ADMIN และในหน้า PREVIEW): ไฟล์ .xlsx แก้ไขได้ หน้าตาและการแบ่งหน้า A4 เหมือน PDF เลือกได้ว่า "มีรายชื่อที่ SAVE แล้ว" หรือ "ฟอร์มเปล่า" ไว้กรอกเอง
    - ชื่อไฟล์ PDF: `261013_10.44 TH-LT_RTAF201_Seat Plan A340 (Pax).pdf` (เวลาไทย)
 4. **ADMIN** (ปุ่มด้านล่าง ต้อง Login): กั้น CREW ZONE จากหัว/ท้ายเครื่อง กรอกรายชื่อลูกเรือ และ PREVIEW / PDF `(CREW)` / Boarding Pass ลูกเรือ · LOGOUT เมื่อเสร็จ
 5. **Boarding Pass** 203 × 82.5 มม. A4 ได้ 3 ใบ/แผ่น จัดกึ่งกลาง (ขอบบน-ล่าง 22.75 มม., ข้าง 3.5 มม., ห่างกัน 2 มม., รอยตัดอยู่ในขอบกระดาษ)
@@ -66,5 +67,6 @@ Email ที่ถูกพักหรือบล็อกเข้าเว�
 
 - `index.html`, `app.css`, `app.js` — หน้าเว็บ
 - `boardingpass.js`, `boardingpass.css`, `emblem.png` — Boarding Pass
+- `excel.js` — สร้างไฟล์ Excel (EXPORT TO EXCEL)
 - `config.js` — URL ของ Apps Script
 - `apps-script/Code.gs` — ระบบหลังบ้าน (วางใน Apps Script)
