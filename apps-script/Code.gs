@@ -112,11 +112,29 @@ function seatList_() {
 }
 const ROWS = ['CC', '1', '2', '11', '12', '14', '15', '16', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', '41', '51', '52', '53', '54', '55', '56', '57'];
 const SEAT_ROW = (function () { const o = {}; seatList_().forEach(function (s) { o[s[0]] = s[2]; }); return o; })();
-// CREW ZONE: หัวเครื่อง = แถวแรกถึงแถวที่เลือก, ท้ายเครื่อง = แถวที่เลือกถึงแถวสุดท้าย (ห้อง Mission Commander ไม่ถูกกั้น)
+// CREW ZONE หัวเครื่อง (ค่าในช่อง B13):
+//   ''      = ไม่กั้น
+//   'CC'    = ห้อง Mission Commander เท่านั้น
+//   'CC-16' = ห้อง Mission Commander ถึงแถว 16
+//   '16'    = แถว 1 ถึงแถว 16 (ไม่รวมห้อง Mission Commander)
+// ท้ายเครื่อง = แถวที่เลือกถึงแถวสุดท้าย
+function crewFront_(v) {   // → { cc: รวมห้อง CC, end: ลำดับแถวสุดท้ายใน ROWS (CC = 0) } หรือ null ถ้าไม่กั้น / ค่าไม่ถูกต้อง
+  v = String(v || '').trim().toUpperCase();
+  if (!v) return null;
+  if (v === 'CC') return { cc: true, end: 0 };
+  const m = /^CC-(.+)$/.exec(v), i = ROWS.indexOf(m ? m[1] : v);
+  return i > 0 ? { cc: !!m, end: i } : null;
+}
+function crewFrontTxt_(v) {
+  const f = crewFront_(v);
+  if (!f) return 'ไม่กั้น';
+  if (!f.end) return 'ห้อง Mission Commander เท่านั้น';
+  return (f.cc ? 'ห้อง Mission Commander ถึงแถว ' : 'แถว 1 ถึงแถว ') + ROWS[f.end];
+}
 function crewRows_(c) {
-  const set = {}, fi = ROWS.indexOf(String(c.front || '')), ri = ROWS.indexOf(String(c.rear || ''));
+  const set = {}, f = crewFront_(c.front), ri = ROWS.indexOf(String(c.rear || ''));
   let i;
-  if (fi > 0) for (i = 1; i <= fi; i++) set[ROWS[i]] = 1;
+  if (f) for (i = f.cc ? 0 : 1; i <= f.end; i++) set[ROWS[i]] = 1;
   if (ri > 0) for (i = ri; i < ROWS.length; i++) set[ROWS[i]] = 1;
   return set;
 }
@@ -364,7 +382,7 @@ function setupMissionSheet_(sh) {
   sh.getRange(2, 1).setValue('บันทึกจากหน้าเว็บ · ประวัติการบันทึกอยู่ที่คอลัมน์ M ด้านขวา').setFontColor('#566575');
   INFO.forEach(function (f) { sh.getRange(f[2], 1).setValue(f[1]).setFontWeight('bold'); });
   sh.getRange(INFO[0][2], 2).setValue('A340');
-  sh.getRange(CREW_FRONT_ROW, 1).setValue('กั้นที่นั่งลูกเรือ หัวเครื่อง ถึงแถว').setFontWeight('bold');
+  sh.getRange(CREW_FRONT_ROW, 1).setValue('กั้นที่นั่งลูกเรือ หัวเครื่อง ถึงแถว (CC = รวมห้อง Mission Commander)').setFontWeight('bold');
   sh.getRange(CREW_REAR_ROW, 1).setValue('กั้นที่นั่งลูกเรือ ท้ายเครื่อง ถึงแถว').setFontWeight('bold');
   sh.getRange(LAST_SAVE_ROW, 1).setValue('SAVE ล่าสุด').setFontWeight('bold');
   sh.getRange(VERSION_ROW, 1, 1, 2).setValues([['LAYOUT', '2']]).setFontColor('#9aa3ad');
@@ -698,15 +716,17 @@ function opAdminSave_(ctx, b) {
     let n = 0;
     // กั้นที่นั่งลูกเรือ
     if (b.crew) {
-      const nc = { front: clean_(b.crew.front, 4), rear: clean_(b.crew.rear, 4) };
-      if (nc.front && ROWS.indexOf(nc.front) < 1) nc.front = '';
+      const nc = { front: clean_(b.crew.front, 8).toUpperCase(), rear: clean_(b.crew.rear, 4) };
+      const ff = crewFront_(nc.front);
+      if (!ff) nc.front = '';
       if (nc.rear && ROWS.indexOf(nc.rear) < 1) nc.rear = '';
-      const fi = ROWS.indexOf(nc.front), ri = ROWS.indexOf(nc.rear);
-      if (fi > 0 && ri > 0 && fi >= ri) throw err_('bad_request', 'กั้นจากหัวเครื่องและท้ายเครื่องซ้อนกัน');
+      const ri = ROWS.indexOf(nc.rear);
+      if (ff && ri > 0 && ff.end >= ri) throw err_('bad_request', 'กั้นจากหัวเครื่องและท้ายเครื่องซ้อนกัน');
       [['front', CREW_FRONT_ROW, 'หัวเครื่อง'], ['rear', CREW_REAR_ROW, 'ท้ายเครื่อง']].forEach(function (c) {
         if (nc[c[0]] === cur.crew[c[0]]) return;
         m.sh.getRange(c[1], 2).setValue(nc[c[0]]);
-        log.push([nowTxt, ctx.email, by, 'กั้นที่นั่งลูกเรือ (ADMIN)', c[2], cur.crew[c[0]] ? 'ถึงแถว ' + cur.crew[c[0]] : 'ไม่กั้น', nc[c[0]] ? 'ถึงแถว ' + nc[c[0]] : 'ไม่กั้น']);
+        const txt = function (v) { return c[0] === 'front' ? crewFrontTxt_(v) : (v ? 'ถึงแถว ' + v : 'ไม่กั้น'); };
+        log.push([nowTxt, ctx.email, by, 'กั้นที่นั่งลูกเรือ (ADMIN)', c[2], txt(cur.crew[c[0]]), txt(nc[c[0]])]);
         cur.crew[c[0]] = nc[c[0]]; n++;
       });
     }

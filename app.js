@@ -103,9 +103,12 @@ function pending(mode){mode=mode||view;if(!D)return {info:[],pax:[],crew:false,c
   var info=INFO_KEYS.filter(function(k){return k in D.info}),pax=SEATS.filter(function(id){return D.pax[id]});
   return {info:info,pax:pax,crew:false,crewPax:[],n:info.length+pax.length}}
 
-/* crew zone: front = row 1 .. chosen row, rear = chosen row .. last row (Mission Commander room is never blocked) */
-function crewRows(c){var set={},fi=ROWS.indexOf(c.front),ri=ROWS.indexOf(c.rear),i;
-  if(fi>0)for(i=1;i<=fi;i++)set[ROWS[i]]=1;
+/* crew zone front: '' = none · 'CC' = Mission Commander room only · 'CC-16' = MC room to row 16 · '16' = row 1 to row 16
+   rear = chosen row .. last row */
+function crewFront(v){v=String(v||'').trim().toUpperCase();if(!v)return null;if(v==='CC')return {cc:true,end:0};
+  var m=/^CC-(.+)$/.exec(v),i=ROWS.indexOf(m?m[1]:v);return i>0?{cc:!!m,end:i}:null}
+function crewRows(c){var set={},f=crewFront(c.front),ri=ROWS.indexOf(c.rear),i;
+  if(f)for(i=f.cc?0:1;i<=f.end;i++)set[ROWS[i]]=1;
   if(ri>0)for(i=ri;i<ROWS.length;i++)set[ROWS[i]]=1;
   return set}
 function isCrew(id,set){return !!(set||crewRows(getCrew()))[SEAT[id].row]}
@@ -498,7 +501,7 @@ function buildZones(host,report,mode){
     z.items.forEach(function(it){
       if(it.cc){
         var room=el('div','ccroom');room.appendChild(seatBtn('CC','CC',true,ctx));room.appendChild(el('span','cclabel','Mission Commander'));
-        var r=el('div','row ccrow');r.appendChild(room);box.appendChild(r);return;
+        var r=el('div','row ccrow');r.appendChild(room);put(r,'CC');return;
       }
       if(it.ovh){
         var o=el('div','row ovhrow');o.appendChild(el('div','rowno'));
@@ -781,7 +784,7 @@ function excelModel(mode,blank){
     return {label:label,s:st.s,mon:mon?st.m:null,crew:crew,name:p?shortName(p):''}};
   var zones=ZONES.map(function(z){var v=stats[z.key],free=blank?(v.t-v.crew-v.bad):v.free;
     return {title:z.title,free:free,items:z.items.map(function(it){
-      if(it.cc)return {type:'cc',crew:false,seat:seatObj('CC','CC',true)};
+      if(it.cc)return {type:'cc',crew:!!set.CC,seat:seatObj('CC','CC',true)};
       if(it.ovh)return {type:'ovh',crew:!!set[it.ovh],mon:['L','C','R'].map(function(p){return status('MON-'+it.ovh+'-'+p).m})};
       return {type:'row',n:String(it.n),crew:!!set[String(it.n)],groups:it.g.map(function(g){return g.split('').map(function(L){return L==='_'?null:seatObj(it.n+L,L,it.mon)})})};
     })}});
@@ -822,9 +825,13 @@ $('pvXls').addEventListener('click',function(){askExcel(pvMode)});
 
 /* ----- ADMIN ----- */
 (function(){var f=$('crewFront'),r=$('crewRear');
-  f.appendChild(new Option('ไม่กั้น',''));r.appendChild(new Option('ไม่กั้น',''));
+  f.appendChild(new Option('ไม่กั้นจากหัวเครื่อง',''));r.appendChild(new Option('ไม่กั้น',''));
   function lbl(k){return 'แถว '+k+'  ('+zoneOf(SEAT[SEATS.filter(function(s){return SEAT[s].row===k})[0]].zone).title+')'}
-  ROWS.forEach(function(k,i){if(i)f.appendChild(new Option(lbl(k),k))});
+  var g1=document.createElement('optgroup'),g2=document.createElement('optgroup');
+  g1.label='เริ่มจากห้อง Mission Commander';g2.label='เริ่มจากแถว 1 (ไม่รวมห้อง Mission Commander)';
+  g1.appendChild(new Option('ห้อง Mission Commander เท่านั้น','CC'));
+  ROWS.forEach(function(k,i){if(i){g1.appendChild(new Option('Mission Commander ถึง'+lbl(k),'CC-'+k));g2.appendChild(new Option('ถึง'+lbl(k),k))}});
+  f.appendChild(g1);f.appendChild(g2);
   ROWS.slice().reverse().forEach(function(k){if(k!=='CC')r.appendChild(new Option(lbl(k),k))});
 })();
 function renderAdmin(){var c=getCrew();$('crewFront').value=c.front;$('crewRear').value=c.rear;
@@ -849,8 +856,8 @@ function adminLogout(){var t=atok;dropAdmin();setView('pax');window.scrollTo(0,0
 function changeCrew(){
   if(closed())return;
   var nc={front:$('crewFront').value,rear:$('crewRear').value};
-  var fi=ROWS.indexOf(nc.front),ri=ROWS.indexOf(nc.rear);
-  if(fi>0&&ri>0&&fi>=ri){toast('กั้นจากหัวเครื่องและท้ายเครื่องซ้อนกัน เลือกแถวใหม่',true);renderAdmin();return}
+  var ff=crewFront(nc.front),ri=ROWS.indexOf(nc.rear);
+  if(ff&&ri>0&&ff.end>=ri){toast('กั้นจากหัวเครื่องและท้ายเครื่องซ้อนกัน เลือกแถวใหม่',true);renderAdmin();return}
   var set=crewRows(nc),hit=SEATS.filter(function(id){return set[SEAT[id].row]&&M.pax[id]&&!isEmpty(M.pax[id])});
   function apply(){D.crew=nc;cleanDraft();persistDraft();renderAll();toast('ตั้ง CREW ZONE แล้ว กด SAVE เพื่อบันทึก')}
   if(hit.length)ask('มีผู้โดยสารในแถวที่จะกั้น','ที่นั่ง '+hit.join(', ')+' มีรายชื่อผู้โดยสารอยู่ เมื่อกด SAVE รายชื่อในที่นั่งเหล่านี้จะถูกล้างออก','กั้นที่นั่ง',apply,renderAdmin);
