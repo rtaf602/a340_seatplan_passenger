@@ -28,6 +28,7 @@ const OPT = {
   sessionHours: 12,        // เข้าหน้ารายการแล้วใช้ได้นานเท่านี้ (ปิด / รีเฟรชหน้าเว็บต้องใส่ใหม่ เพราะหน้าเว็บไม่เก็บไว้)
   missionHours: 12,        // ใส่รหัสภารกิจแล้วใช้ได้นานเท่านี้ (ออกจากภารกิจแล้วกลับเข้าใหม่ต้องใส่ใหม่)
   adminHours: 2,           // Login หน้า ADMIN ใช้ได้นานเท่านี้
+  viewHours: 2,            // Login ดูภารกิจที่เสร็จสิ้น / ภารกิจทั้งหมด ใช้ได้นานเท่านี้ (ปิด / รีเฟรชหน้าเว็บต้อง Login ใหม่)
   // กติกาเดียวกันทุกรหัส (รหัสเว็บไซต์, รหัสภารกิจ, Login): ผิดติดกัน 5 ครั้ง พัก 60 นาที · ผิดอีก 5 ครั้ง บล็อกจนแอดมินแก้สถานะเป็น ACTIVE
   //   นับต่อ Email ในแท็บ LOCKED EMAILS และต่อ Username ในแท็บ LOCKED USERS (ไฟล์ Admin Page) · งานที่ใช้ทั้งสองอย่างนับทั้งคู่
   maxFails: 5, pauseMinutes: 60,
@@ -156,7 +157,8 @@ const ACTIONS = {
   'mission.reopen': opReopen_,
   'admin.login': opAdminLogin_,
   'admin.logout': opAdminLogout_,
-  'admin.save': opAdminSave_
+  'admin.save': opAdminSave_,
+  'missions.unlock': opMissionsUnlock_
 };
 
 // ---------- Script Properties ----------
@@ -283,10 +285,21 @@ function missionCtx_(ctx, ss, id) {
 }
 function missionLabel_(ix) { return [ix.flight, ix.sectorNo ? 'S' + ix.sectorNo : '', ix.date].filter(String).join(' ') || ix.tab; }
 
+// ภารกิจที่ปิดแล้วส่งให้เฉพาะคนที่ Login ดูภารกิจที่เสร็จสิ้น / ทั้งหมด (token 'v') ผู้ใช้ทั่วไปได้เฉพาะภารกิจที่เปิดอยู่
+function viewAuth_(ctx, b) { const t = unsign_(b.vt, 'v', ctx.now); return !!(t && t.e === (ctx.email || '')); }
+function opMissionsUnlock_(ctx, b) {
+  session_(ctx);
+  return withLock_(function () {
+    const p = credCheck_(ctx, b.cred, 'ดูภารกิจที่เสร็จสิ้น / ภารกิจทั้งหมด', null);
+    return { ok: true, vt: sign_({ k: 'v', u: p.username, e: ctx.email || '', x: ctx.now + OPT.viewHours * 3600e3 }), hours: OPT.viewHours };
+  });
+}
 function opMissions_(ctx, b) {
   session_(ctx);
   const ss = SpreadsheetApp.getActive();
-  const out = readIndex_(ss).rows.filter(function (r) { return !!sheetById_(ss, r.id); }).map(function (r) {
+  const canView = viewAuth_(ctx, b);
+  const all = readIndex_(ss).rows.filter(function (r) { return !!sheetById_(ss, r.id); });
+  const out = all.filter(function (r) { return canView || r.status !== 'CLOSED'; }).map(function (r) {
     return { id: r.id, tab: r.tab, name: r.name, flight: r.flight, sectorNo: r.sectorNo, route: r.route, date: r.date, pax: Number(r.pax) || 0,
       created: r.created, updated: r.updated, by: r.by, status: r.status, hasPw: !!r.pw, closeInfo: r.closeInfo };
   });
@@ -295,9 +308,9 @@ function opMissions_(ctx, b) {
     const names = open.map(function (m, i) {
       return (i + 1) + '. ' + [m.flight, m.sectorNo ? 'Sector ' + m.sectorNo : '', m.route, m.date].filter(String).join(' · ') + (m.name ? ' — ' + m.name : '');
     }).join('\n');
-    userLog_(ctx, null, ctx.email, '', 'เปิดหน้ารายการภารกิจ', 'เปิดอยู่ ' + open.length + ' ภารกิจ (ทั้งหมด ' + out.length + ')', names || '-');
+    userLog_(ctx, null, ctx.email, '', 'เปิดหน้ารายการภารกิจ', 'เปิดอยู่ ' + open.length + ' ภารกิจ (ทั้งหมด ' + all.length + ')', names || '-');
   }
-  return { ok: true, missions: out.reverse() };
+  return { ok: true, missions: out.reverse(), canView: canView };
 }
 
 function opCreate_(ctx, b) {
@@ -332,6 +345,7 @@ function opOpen_(ctx, b) {
   session_(ctx);
   const ss = SpreadsheetApp.getActive();
   const m = missionCtx_(ctx, ss, b.id);
+  if (m.ix.status === 'CLOSED' && !viewAuth_(ctx, b)) throw err_('need_view', 'ภารกิจนี้เสร็จสิ้นแล้ว ต้อง Login ดูภารกิจที่เสร็จสิ้นก่อน');
   if (!m.ix.pw) throw err_('no_password', 'ภารกิจนี้ยังไม่ได้ตั้งรหัสภารกิจ ให้กด “เปลี่ยนรหัสภารกิจ” เพื่อตั้งรหัสก่อน');
   const ok = same_(String(b.mpw || ''), m.ix.pw);
   emailAttempt_(ctx, m.ix, ok, 'ใส่รหัสภารกิจ', 'mpw:' + m.ix.id);

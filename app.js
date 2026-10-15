@@ -219,7 +219,7 @@ $('gatePin').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preven
 /* errors any request can get: the access session ran out, the mission password is needed again, ADMIN timed out */
 function authFail(res){
   if(!res)return false;
-  if(res.error==='session'){sess='';mtok={};dropAdmin();showGate(res.message);return true}
+  if(res.error==='session'){sess='';mtok={};vtok='';dropAdmin();showGate(res.message);return true}
   if(res.error==='mission_token'&&curId){delete mtok[curId];var id=curId;leavePlan();toast(res.message||'ต้องใส่รหัสภารกิจใหม่',true);pendingOpen=id;location.hash='';return true}
   if(res.error==='admin_token'){dropAdmin();setView('pax');toast(res.message||'หมดเวลาของหน้า ADMIN',true);return true}
   return false;
@@ -228,13 +228,19 @@ function authFail(res){
 /* =====================================================================
    Mission list page
    ===================================================================== */
-var ML=[],mtab='open',pendingOpen=null;
+var ML=[],mtab='open',pendingOpen=null,vtok='';   // vtok: Login ดูภารกิจที่เสร็จสิ้น / ทั้งหมด (memory only)
 var rFrom=dateSel($('rFrom'),{ph:['วัน','เดือน','ปี'],years:flightYears(),anyLabel:true,onChange:renderMissions});
 var rTo=dateSel($('rTo'),{ph:['วัน','เดือน','ปี'],years:flightYears(),anyLabel:true,onChange:renderMissions});
 function rangeNum(ds,end){var p=ds.parts();if(!p.y)return 0;return (+p.y)*10000+((p.m===''?(end?11:0):+p.m)+1)*100+(p.d?+p.d:(end?31:1))}
 $('rClear').addEventListener('click',function(){rFrom.set('','','');rTo.set('','','');renderMissions()});
-[].forEach.call(document.querySelectorAll('#mtabs button'),function(b){b.addEventListener('click',function(){mtab=b.dataset.v;
-  [].forEach.call(document.querySelectorAll('#mtabs button'),function(x){x.classList.toggle('on',x===b);x.setAttribute('aria-selected',String(x===b))});renderMissions()})});
+function setTab(v){mtab=v;[].forEach.call(document.querySelectorAll('#mtabs button'),function(x){var on=x.dataset.v===v;x.classList.toggle('on',on);x.setAttribute('aria-selected',String(on))});renderMissions()}
+[].forEach.call(document.querySelectorAll('#mtabs button'),function(b){b.addEventListener('click',function(){
+  var v=b.dataset.v;if(v==='open'||vtok){setTab(v);return}
+  // ภารกิจที่เสร็จสิ้น / ทั้งหมด ต้อง Login ด้วย LOGIN DATABASE ก่อน
+  credDialog({title:'Login เพื่อดู'+(v==='closed'?'ภารกิจที่เสร็จสิ้นเรียบร้อย':'ภารกิจทั้งหมด'),sub:'ยืนยันตัวตนด้วยข้อมูลใน LOGIN DATABASE',yes:'Login',
+    submit:function(d){return api({action:'missions.unlock',cred:d.cred})},
+    done:function(res){vtok=res.vt;toast('Login แล้ว ดูภารกิจทั้งหมดได้ '+(res.hours||2)+' ชั่วโมง');loadMissions().then(function(){setTab(v)})}});
+})});
 function showMissions(first){
   leavePlan();
   $('pagePlan').hidden=true;$('pageMissions').hidden=false;document.title='A340 Passenger Seat Plan';
@@ -242,9 +248,10 @@ function showMissions(first){
   return loadMissions(first);
 }
 function loadMissions(first){
-  return api({action:'missions',first:!!first}).then(function(res){
+  return api({action:'missions',first:!!first,vt:vtok||undefined}).then(function(res){
     if(authFail(res))return;
     if(!res||!res.ok)throw new Error(res&&res.message||'load');
+    if(vtok&&!res.canView){vtok='';if(mtab!=='open'){setTab('open');toast('หมดเวลาการดูภารกิจที่เสร็จสิ้น ให้ Login ใหม่',true)}}
     ML=res.missions||[];$('noticeM').hidden=true;renderMissions();
     if(pendingOpen){var m=ML.filter(function(x){return x.id===pendingOpen})[0];pendingOpen=null;if(m)openMission(m)}
   }).catch(function(){$('noticeM').hidden=false;$('noticeM').textContent='ดึงรายการภารกิจไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วกด “โหลดใหม่”'});
@@ -253,7 +260,7 @@ function renderMissions(){
   var from=rangeNum(rFrom,false),to=rangeNum(rTo,true);
   var inRange=ML.filter(function(m){if(!from&&!to)return true;var n=dateNum(m.date);if(!n)return false;return (!from||n>=from)&&(!to||n<=to)});
   var c={open:0,closed:0,all:inRange.length};inRange.forEach(function(m){if(m.status==='CLOSED')c.closed++;else c.open++});
-  $('cOpen').textContent=c.open;$('cClosed').textContent=c.closed;$('cAll').textContent=c.all;
+  $('cOpen').textContent=c.open;$('cClosed').textContent=vtok?c.closed:'🔒';$('cAll').textContent=vtok?c.all:'🔒';
   var list=inRange.filter(function(m){return mtab==='all'||(mtab==='closed')===(m.status==='CLOSED')});
   list.sort(function(a,b){return (dateNum(b.date)-dateNum(a.date))||(+b.id-+a.id)});
   var host=$('mlist');host.textContent='';
@@ -296,7 +303,7 @@ $('mpwIn').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventD
 $('mpwYes').addEventListener('click',function(){
   var m=mpwFor,pw=$('mpwIn').value;if(!m)return;if(!pw){$('mpwIn').focus();return}
   $('mpwYes').disabled=true;
-  api({action:'open',id:m.id,mpw:pw}).then(function(res){
+  api({action:'open',id:m.id,mpw:pw,vt:vtok||undefined}).then(function(res){
     if(authFail(res)){hideDlg($('mpwDlg'));return}
     if(!res||!res.ok){$('mpwErr').textContent=(res&&res.message)||'เข้าภารกิจไม่สำเร็จ';$('mpwErr').hidden=false;$('mpwYes').disabled=false;$('mpwIn').value='';$('mpwIn').focus();return}
     mtok[m.id]=res.mt;hideDlg($('mpwDlg'));mpwFor=null;location.hash='m='+encodeURIComponent(m.id);
