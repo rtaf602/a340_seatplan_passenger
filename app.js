@@ -764,7 +764,7 @@ function exportPdf(mode){
     offerFile(name,pdf.output('arraybuffer'),'application/pdf');
     logEvent('EXPORT TO PDF',name);
   })
-  .catch(function(){toast('สร้าง PDF ไม่สำเร็จ ลองอีกครั้ง',true)})
+  .catch(function(e){if(window.console)console.error('EXPORT TO PDF',e);toast('สร้าง PDF ไม่สำเร็จ ลองอีกครั้ง',true)})
   .then(function(){wrap.remove();busy=false});
 }
 

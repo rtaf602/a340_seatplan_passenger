@@ -8,6 +8,8 @@ img{max-width:100%}
   --accent:#1f5fa8; --accent-ink:#ffffff; --rowno:#35547c; --seat:#ffffff;
   --ok:#2e9d57; --ok-soft:#d6f0df; --warn:#e2a400; --warn-soft:#fdf0c4; --bad:#d23b33; --bad-soft:#fbdad7;
   --crew:#d0102a; --crew-soft:#fde3e6; --gold:#b8913a; --navy:#0e1d3c;
+  /* plain rgba (no color-mix): html2canvas used by EXPORT TO PDF cannot read color-mix() */
+  --room-bg:rgba(255,255,255,.55); --crew-tint:rgba(253,227,230,.45);
   --sans:"IBM Plex Sans Thai","Noto Sans Thai",Tahoma,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
   color-scheme:light;
 }
@@ -15,12 +17,12 @@ img{max-width:100%}
   --bg:#0e151c; --panel:#17212b; --cabin:#1c2a38; --ink:#e6edf4; --muted:#9aa9b8; --faint:#62717f; --line:#33455a;
   --accent:#6aa9ee; --accent-ink:#08131f; --rowno:#9dbde6; --seat:#223142;
   --ok:#3fb56c; --ok-soft:#173a26; --warn:#e9b422; --warn-soft:#40330d; --bad:#ea5a52; --bad-soft:#451b19;
-  --crew:#ff5a6e; --crew-soft:#3d1a20; --gold:#d6b25e; color-scheme:dark } }
+  --crew:#ff5a6e; --crew-soft:#3d1a20; --gold:#d6b25e; --room-bg:rgba(23,33,43,.55); --crew-tint:rgba(61,26,32,.45); color-scheme:dark } }
 :root[data-theme="dark"]{
   --bg:#0e151c; --panel:#17212b; --cabin:#1c2a38; --ink:#e6edf4; --muted:#9aa9b8; --faint:#62717f; --line:#33455a;
   --accent:#6aa9ee; --accent-ink:#08131f; --rowno:#9dbde6; --seat:#223142;
   --ok:#3fb56c; --ok-soft:#173a26; --warn:#e9b422; --warn-soft:#40330d; --bad:#ea5a52; --bad-soft:#451b19;
-  --crew:#ff5a6e; --crew-soft:#3d1a20; --gold:#d6b25e; color-scheme:dark }
+  --crew:#ff5a6e; --crew-soft:#3d1a20; --gold:#d6b25e; --room-bg:rgba(23,33,43,.55); --crew-tint:rgba(61,26,32,.45); color-scheme:dark }
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
 .wrap{max-width:1040px;margin:0 auto;padding-inline:16px;padding-block:0 48px;display:flex;flex-direction:column;gap:20px}
@@ -115,14 +117,14 @@ select option{color:var(--ink);font-weight:500}
 .seat[data-pending] .s,.ovh[data-pending]{outline:2px dashed var(--accent);outline-offset:2px}
 /* Mission Commander room */
 .ccrow{padding-block:4px}
-.ccroom{display:flex;align-items:flex-end;gap:12px;border:2px solid var(--muted);border-radius:10px;padding:10px 18px 10px 14px;background:color-mix(in srgb,var(--panel) 55%,transparent)}
+.ccroom{display:flex;align-items:flex-end;gap:12px;border:2px solid var(--muted);border-radius:10px;padding:10px 18px 10px 14px;background:var(--room-bg)}
 .cclabel{height:38px;display:flex;align-items:center;white-space:nowrap;font-size:13px;font-weight:600;color:var(--muted)}
 .ovhrow{align-items:center;height:22px;margin-block:2px}
 .ovhrow .rowno{padding:0}
 .ovhrow .gap{height:1px}
 .ovh{border:0;background:var(--ok);color:#10202b;font-size:11px;font-weight:600;border-radius:3px;padding:2px 10px;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);white-space:nowrap;cursor:default}
 /* CREW ZONE box around blocked rows */
-.crewbox{position:relative;width:100%;display:flex;flex-direction:column;gap:8px;align-items:center;border:3px solid var(--crew);border-radius:10px;padding:34px 6px 10px;background:color-mix(in srgb,var(--crew-soft) 45%,transparent)}
+.crewbox{position:relative;width:100%;display:flex;flex-direction:column;gap:8px;align-items:center;border:3px solid var(--crew);border-radius:10px;padding:34px 6px 10px;background:var(--crew-tint)}
 .crewbox>.crewlbl{position:absolute;top:4px;left:0;right:0;text-align:center;font:700 22px/1 var(--sans);letter-spacing:.18em;color:var(--crew);pointer-events:none}
 .ro .seat{cursor:default}
 
@@ -226,7 +228,7 @@ dialog.wide[open]{display:flex;flex-direction:column}
 /* report used by PREVIEW and PDF: always light, fixed A4-ish width */
 .report{
   --bg:#ffffff; --panel:#ffffff; --cabin:#eef4fa; --ink:#14212e; --muted:#566575; --faint:#9aa6b2; --line:#c5d0dc; --seat:#ffffff;
-  --accent:#1f5fa8; --accent-ink:#ffffff; --rowno:#35547c; --ok:#2e9d57; --warn:#e2a400; --bad:#d23b33; --bad-soft:#fbdad7; --crew:#d0102a; --crew-soft:#fde3e6;
+  --accent:#1f5fa8; --accent-ink:#ffffff; --rowno:#35547c; --ok:#2e9d57; --warn:#e2a400; --bad:#d23b33; --bad-soft:#fbdad7; --crew:#d0102a; --crew-soft:#fde3e6; --room-bg:rgba(255,255,255,.55); --crew-tint:rgba(253,227,230,.45);
   color-scheme:light;background:#fff;color:var(--ink);width:794px;max-width:none;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:12px;font-family:var(--sans)}
 .report .blk{background:#fff}
 .report h1{font-size:20px;margin:0 0 2px}
