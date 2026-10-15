@@ -82,6 +82,7 @@ const LOG_FIRST_ROW = 3;
 
 // ไฟล์ประวัติ
 const UL_HOME = 'หน้าแรก', UL_HEAD = ['Timestamp', 'Email', 'ผู้บันทึก', 'Action', 'Detail'];
+const UL_HOME_HEAD = UL_HEAD.concat(['ภารกิจที่เปิดอยู่ ณ ขณะนั้น']);   // แท็บหน้าแรกมีคอลัมน์ F เพิ่ม
 const AL_LOGIN = 'HISTORY LOGIN DATA', AL_LOGIN_HEAD = ['Timestamp', 'Email', 'Username', 'Event', 'ใช้สำหรับ', 'ภารกิจ', 'รายละเอียด'];
 const AL_ACT = 'ADMIN ACTIVITY', AL_ACT_HEAD = ['Timestamp', 'Email', 'Username', 'ภารกิจ', 'Action', 'Detail'];
 const AL_LOCK = 'LOCKED USERS', AL_LOCK_HEAD = ['Username', 'สถานะ', 'จำนวนครั้งที่ผิด', 'พักถึงเวลา', 'รอบ', 'อัปเดตล่าสุด', 'วิธีปลดบล็อก'];
@@ -310,7 +311,13 @@ function opMissions_(ctx, b) {
     return { id: r.id, tab: r.tab, name: r.name, flight: r.flight, sectorNo: r.sectorNo, route: r.route, date: r.date, pax: Number(r.pax) || 0,
       created: r.created, updated: r.updated, by: r.by, status: r.status, hasPw: !!r.pw, closeInfo: r.closeInfo };
   });
-  if (b.first) userLog_(ctx, null, ctx.email, '', 'เปิดหน้ารายการภารกิจ', out.length + ' ภารกิจ');
+  if (b.first) {
+    const open = out.filter(function (m) { return m.status !== 'CLOSED'; });
+    const names = open.map(function (m, i) {
+      return (i + 1) + '. ' + [m.flight, m.sectorNo ? 'Sector ' + m.sectorNo : '', m.route, m.date].filter(String).join(' · ') + (m.name ? ' — ' + m.name : '');
+    }).join('\n');
+    userLog_(ctx, null, ctx.email, '', 'เปิดหน้ารายการภารกิจ', 'เปิดอยู่ ' + open.length + ' ภารกิจ (ทั้งหมด ' + out.length + ')', names || '-');
+  }
   return { ok: true, missions: out.reverse() };
 }
 
@@ -815,14 +822,21 @@ function logTab_(fileIdValue, name, head) {
 }
 function quietly_(fn) { try { fn(); } catch (e) { console.error('log: ' + (e && e.message || e)); } }
 // User Page: แท็บ "หน้าแรก" (ix = null) หรือแท็บของภารกิจ (สร้างเมื่อใช้ครั้งแรก จำ gid ไว้ในแท็บรายการภารกิจ)
-function userLog_(ctx, ix, email, by, action, detail) { userLogRows_(ctx, ix, [[new Date(ctx.now), email || '', by || '', action, detail || '']]); }
+function userLog_(ctx, ix, email, by, action, detail, extra) { userLogRows_(ctx, ix, [[new Date(ctx.now), email || '', by || '', action, detail || ''].concat(extra ? [extra] : [])]); }
 function userLogRows_(ctx, ix, rows) {
   if (!rows.length) return;
   quietly_(function () {
     const fid = prop_(PROP.ulog);
     if (!fid) return;
-    let sh;
-    if (!ix) sh = logTab_(fid, UL_HOME, UL_HEAD);
+    let sh, head = UL_HEAD;
+    if (!ix) {
+      head = UL_HOME_HEAD;
+      sh = logTab_(fid, UL_HOME, head);
+      if (sh.getRange(1, head.length).getDisplayValue() !== head[head.length - 1]) {   // แท็บที่สร้างก่อนมีคอลัมน์ F
+        sh.getRange(1, head.length).setValue(head[head.length - 1]).setFontWeight('bold').setBackground('#dfeaf5');
+        try { sh.setColumnWidth(head.length, 420); sh.getRange(1, head.length, sh.getMaxRows(), 1).setWrap(true); } catch (e) { /* ไม่สำคัญ */ }
+      }
+    }
     else {
       const ss = SpreadsheetApp.openById(fileId_(fid));
       sh = ix.ulog ? sheetById_(ss, ix.ulog) : null;
@@ -836,7 +850,8 @@ function userLogRows_(ctx, ix, rows) {
       }
     }
     const start = sh.getLastRow() + 1;
-    sh.getRange(start, 1, rows.length, UL_HEAD.length).setValues(rows.map(function (r) { return [r[0]].concat(r.slice(1).map(safe_)); }));
+    sh.getRange(start, 1, rows.length, head.length).setValues(rows.map(function (r) {
+      const o = [r[0]].concat(r.slice(1, head.length).map(safe_)); while (o.length < head.length) o.push(''); return o; }));
   });
 }
 function loginLog_(ctx, username, event, purpose, mission, detail) {
@@ -1012,7 +1027,7 @@ function setup() {
   const s = adminStatus_();
   Logger.log('อ่านสภาพที่นั่งจากไฟล์ Seat Plan 340 (For Admin) ได้ ' + Object.keys(s).length + ' รายการ');
   Logger.log('อ่านรายชื่อจาก LOGIN DATABASE ได้ ' + loginDb_().length + ' แถว');
-  logTab_(prop_(PROP.ulog), UL_HOME, UL_HEAD);
+  logTab_(prop_(PROP.ulog), UL_HOME, UL_HOME_HEAD);
   logTab_(prop_(PROP.alog), AL_LOGIN, AL_LOGIN_HEAD);
   logTab_(prop_(PROP.alog), AL_ACT, AL_ACT_HEAD);
   lockSheet_(LOCK_USER); lockSheet_(LOCK_PIN);
