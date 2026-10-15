@@ -632,6 +632,11 @@ function opClose_(ctx, b) {
   return withLock_(function () {
     const ss = SpreadsheetApp.getActive();
     const m = missionCtx_(ctx, ss, b.id);
+    if (!m.ix.pw || !same_(String(b.mpw || ''), m.ix.pw)) {   // ปิดภารกิจต้องใช้รหัสภารกิจด้วย (เหมือนเปิดอีกครั้ง)
+      loginLog_(ctx, str_(b.cred && b.cred.u).toLowerCase(), 'LOGIN_FAIL', 'ปิดภารกิจ', missionLabel_(m.ix), m.ix.pw ? 'รหัสภารกิจไม่ถูกต้อง' : 'ภารกิจยังไม่ได้ตั้งรหัส');
+      Utilities.sleep(600);
+      throw err_('login_failed', MSG.login);
+    }
     const p = credCheck_(ctx, b.cred, 'ปิดภารกิจ', m.ix);
     if (m.ix.status === 'CLOSED') return { ok: true, already: true };
     const t = fmtTime_(new Date(ctx.now));

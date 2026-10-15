@@ -335,8 +335,8 @@ function credFlow(kind,m){
   if(kind==='pw')credDialog({title:m.hasPw?'เปลี่ยนรหัสภารกิจ':'ตั้งรหัสภารกิจ',sub:missionTxt(m)+' · ยืนยันตัวตนด้วยข้อมูลใน LOGIN DATABASE',needNew:true,yes:'บันทึกรหัสใหม่',
     submit:function(d){return api({action:'mpw.change',id:m.id,cred:d.cred,newPw:d.newPw})},
     done:function(){delete mtok[m.id];toast('บันทึกรหัสภารกิจใหม่แล้ว');loadMissions()}});
-  if(kind==='close')credDialog({title:'ปิดภารกิจ',sub:missionTxt(m)+' · ภารกิจที่ปิดแล้วดูได้อย่างเดียว เปิดอีกครั้งได้ภายหลัง',yes:'ปิดภารกิจ',
-    submit:function(d){return api({action:'mission.close',id:m.id,cred:d.cred})},
+  if(kind==='close')credDialog({title:'ปิดภารกิจ',sub:missionTxt(m)+' · ภารกิจที่ปิดแล้วดูได้อย่างเดียว เปิดอีกครั้งได้ภายหลัง',needMpw:true,yes:'ปิดภารกิจ',
+    submit:function(d){return api({action:'mission.close',id:m.id,mpw:d.mpw,cred:d.cred})},
     done:function(){toast('ปิดภารกิจแล้ว');loadMissions()}});
   if(kind==='reopen')credDialog({title:'เปิดภารกิจอีกครั้ง',sub:missionTxt(m),needMpw:true,yes:'เปิดภารกิจ',
     submit:function(d){return api({action:'mission.reopen',id:m.id,mpw:d.mpw,cred:d.cred})},
