@@ -311,3 +311,5 @@ dialog.wide[open]{display:flex;flex-direction:column}
 .glbl{font-size:13px;font-weight:600;color:var(--muted)}
 #gsiBox.done .glbl{color:var(--ok)}
 #gsiBtn{display:flex;justify-content:center;min-height:40px}
+.nsec{margin:6px 0 8px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;font-weight:700;color:var(--ink)}
+#newDlg{width:min(560px,calc(100vw - 32px))}

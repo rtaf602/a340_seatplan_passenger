@@ -6,9 +6,9 @@
 <title>A340 Passenger Seat Plan</title>
 <link rel="icon" href="emblem.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Barlow+Semi+Condensed:wght@400;500;600&family=Sarabun:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="app.css?v=2610151845">
-<link rel="stylesheet" href="boardingpass.css?v=2610151845">
-<script src="config.js?v=2610151845"></script>
+<link rel="stylesheet" href="app.css?v=2610151850">
+<link rel="stylesheet" href="boardingpass.css?v=2610151850">
+<script src="config.js?v=2610151850"></script>
 </head>
 <body>
 
@@ -177,7 +177,7 @@
 
 <dialog id="newDlg" class="small">
   <h3>เปิดภารกิจใหม่</h3>
-  <p class="sub">1 Sector = 1 ภารกิจ = 1 แท็บใน Google Sheet ข้อมูลอื่นกรอกต่อได้ในหน้าผังที่นั่ง · ขั้นถัดไปต้อง Login ด้วย Username, Password, เลขบัตรข้าราชการ และวันเดือนปีเกิด</p>
+  <p class="sub">1 Sector = 1 ภารกิจ = 1 แท็บใน Google Sheet ข้อมูลอื่นกรอกต่อได้ในหน้าผังที่นั่ง</p>
   <div class="ngrid">
     <label class="f"><span>Sector</span><span class="pre"><b>Sector</b><input id="nSector" maxlength="4" inputmode="numeric" placeholder="1"></span></label>
     <label class="f"><span>เที่ยวบินที่</span><input id="nFlight" maxlength="20" class="up" placeholder="RTAF201"></label>
@@ -187,9 +187,14 @@
     <label class="f"><span>รหัสภารกิจ (อย่างน้อย 4 ตัว)</span><input id="nPw" type="password" maxlength="60" autocomplete="new-password"></label>
     <label class="f"><span>ยืนยันรหัสภารกิจ</span><input id="nPw2" type="password" maxlength="60" autocomplete="new-password"></label>
     <label class="f span2"><span>ชื่อผู้บันทึก</span><input id="nBy" maxlength="60" autocomplete="off"></label>
+    <p class="nsec span2">ยืนยันตัวตนด้วยข้อมูลใน LOGIN DATABASE</p>
+    <label class="f"><span>Username</span><input id="nUser" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    <label class="f"><span>Password</span><input id="nPass" type="password" maxlength="200" autocomplete="off"></label>
+    <label class="f"><span>หมายเลขบัตรประจำตัวข้าราชการ</span><input id="nIdGov" maxlength="20" inputmode="numeric" autocomplete="off"></label>
+    <div class="f"><span>วันเดือนปีเกิด</span><div class="date" id="nBirth"><select aria-label="วันเกิด"></select><select aria-label="เดือนเกิด"></select><select aria-label="ปีเกิด (พ.ศ.)"></select></div></div>
   </div>
   <p class="err" id="nErr" hidden></p>
-  <div class="acts"><button class="btn" id="nNo" type="button">ยกเลิก</button><button class="btn pri" id="nYes" type="button">ถัดไป: Login</button></div>
+  <div class="acts"><button class="btn" id="nNo" type="button">ยกเลิก</button><button class="btn pri" id="nYes" type="button">เปิดภารกิจ</button></div>
 </dialog>
 
 <dialog id="mpwDlg" class="small">
@@ -271,8 +276,8 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="excel.js?v=2610151845"></script>
-<script src="boardingpass.js?v=2610151845"></script>
-<script src="app.js?v=2610151845"></script>
+<script src="excel.js?v=2610151850"></script>
+<script src="boardingpass.js?v=2610151850"></script>
+<script src="app.js?v=2610151850"></script>
 </body>
 </html>
