@@ -28,9 +28,9 @@ const OPT = {
   sessionHours: 12,        // เข้าหน้ารายการแล้วใช้ได้นานเท่านี้ (ปิด / รีเฟรชหน้าเว็บต้องใส่ใหม่ เพราะหน้าเว็บไม่เก็บไว้)
   missionHours: 12,        // ใส่รหัสภารกิจแล้วใช้ได้นานเท่านี้ (ออกจากภารกิจแล้วกลับเข้าใหม่ต้องใส่ใหม่)
   adminHours: 2,           // Login หน้า ADMIN ใช้ได้นานเท่านี้
-  pinMaxFails: 10, pinLockMinutes: 15,   // รหัสเว็บไซต์: ผิด 10 ครั้ง พัก 15 นาที ผิดอีก 10 ครั้ง บล็อก (ปลดในแท็บ LOCKED EMAILS)
-  mpwMaxFails: 5, mpwLockMinutes: 15,
-  loginMaxFails: 5, loginPauseMinutes: 60,
+  // กติกาเดียวกันทุกรหัส (รหัสเว็บไซต์, รหัสภารกิจ, Login): ผิดติดกัน 5 ครั้ง พัก 60 นาที · ผิดอีก 5 ครั้ง บล็อกจนแอดมินแก้สถานะเป็น ACTIVE
+  //   นับต่อ Email ในแท็บ LOCKED EMAILS และต่อ Username ในแท็บ LOCKED USERS (ไฟล์ Admin Page) · งานที่ใช้ทั้งสองอย่างนับทั้งคู่
+  maxFails: 5, pauseMinutes: 60,
   minMissionPw: 4,
   loginTab: 'DATABASE LOGIN',
   roles: ['Admin', 'Editor', 'Viewer']
@@ -38,10 +38,9 @@ const OPT = {
 const MSG = {
   login: 'ข้อมูลไม่ถูกต้อง หรือบัญชียังไม่พร้อมใช้งาน ให้ติดต่อ Admin',
   pin: 'รหัสผ่านไม่ถูกต้อง',
-  pinLocked: 'ใส่รหัสผ่านผิดหลายครั้ง ให้รอ ' + OPT.pinLockMinutes + ' นาทีแล้วลองใหม่',
-  pinBlocked: 'บัญชี Google นี้ใส่รหัสผ่านผิดหลายครั้งและถูกบล็อก ให้ติดต่อ Admin',
+  locked: 'ใส่ข้อมูลผิดหลายครั้ง ให้รอ ' + OPT.pauseMinutes + ' นาทีแล้วลองใหม่',
+  blocked: 'บัญชี Google นี้ใส่ข้อมูลผิดหลายครั้งและถูกบล็อก ให้ติดต่อ Admin',
   mpw: 'รหัสภารกิจไม่ถูกต้อง',
-  mpwLocked: 'ใส่รหัสภารกิจผิดหลายครั้ง ให้รอ ' + OPT.mpwLockMinutes + ' นาทีแล้วลองใหม่',
   session: 'หมดเวลาใช้งาน ให้ใส่รหัสผ่านเข้าใช้งานใหม่',
   mission: 'ต้องใส่รหัสภารกิจใหม่',
   admin: 'หมดเวลาของหน้า ADMIN ให้ Login ใหม่',
@@ -87,9 +86,9 @@ const AL_LOGIN = 'HISTORY LOGIN DATA', AL_LOGIN_HEAD = ['Timestamp', 'Email', 'U
 const AL_ACT = 'ADMIN ACTIVITY', AL_ACT_HEAD = ['Timestamp', 'Email', 'Username', 'ภารกิจ', 'Action', 'Detail'];
 const AL_LOCK = 'LOCKED USERS', AL_LOCK_HEAD = ['Username', 'สถานะ', 'จำนวนครั้งที่ผิด', 'พักถึงเวลา', 'รอบ', 'อัปเดตล่าสุด', 'วิธีปลดบล็อก'];
 const AL_PINLOCK = 'LOCKED EMAILS', AL_PINLOCK_HEAD = ['Email', 'สถานะ', 'จำนวนครั้งที่ผิด', 'พักถึงเวลา', 'รอบ', 'อัปเดตล่าสุด', 'วิธีปลดบล็อก'];
-// ล็อก 2 แบบใช้กติกาเดียวกัน: ผิดครบ max ครั้ง พัก pause นาที แล้วผิดอีก max ครั้ง บล็อกจนแอดมินแก้สถานะเป็น ACTIVE
-const LOCK_USER = { tab: AL_LOCK, head: AL_LOCK_HEAD, max: function () { return OPT.loginMaxFails; }, pause: function () { return OPT.loginPauseMinutes; } };
-const LOCK_PIN = { tab: AL_PINLOCK, head: AL_PINLOCK_HEAD, max: function () { return OPT.pinMaxFails; }, pause: function () { return OPT.pinLockMinutes; } };
+// ล็อก 2 แท็บใช้กติกาเดียวกัน (OPT.maxFails / OPT.pauseMinutes)
+const LOCK_USER = { tab: AL_LOCK, head: AL_LOCK_HEAD, max: function () { return OPT.maxFails; }, pause: function () { return OPT.pauseMinutes; } };
+const LOCK_EMAIL = { tab: AL_PINLOCK, head: AL_PINLOCK_HEAD, max: function () { return OPT.maxFails; }, pause: function () { return OPT.pauseMinutes; } };
 
 // LOGIN DATABASE: หาคอลัมน์จากชื่อหัวคอลัมน์ (เหมือนระบบ eadmin)
 const COL = { rank: 'ยศ', name: 'ชื่อ-สกุล', pos: 'ตำแหน่งงาน', idGov: 'ID Card ขรก.', idCit: 'ID Card ปชช.', birth: 'BIRTH DATE', role: 'Role', username: 'Username', salt: 'Salt', hash: 'hash', end: 'วันสิ้นสุดการใช้งาน' };
@@ -205,32 +204,12 @@ function opEnter_(ctx, b) {
     email = googleEmail_(String(b.credential || ''), cid);
     if (!email) throw err_('google', MSG.google);
   }
+  ctx.email = email;
   const pin = prop_(PROP.pin);
   if (!pin) throw err_('config', 'ยังไม่ได้ตั้งรหัสเข้าใช้งาน (accessPin) ใน setup()');
   const ok = same_(String(b.pin || ''), pin);
-  if (email) {
-    // Sign in with Google แล้ว: นับผิดต่ออีเมลในแท็บ LOCKED EMAILS (ไฟล์ Admin Page)
-    withLock_(function () {
-      const st = lockState_(email, ctx.now, LOCK_PIN);
-      if (st.status === 'BLOCKED') { userLog_(ctx, null, email, '', 'ใส่รหัสเข้าใช้งาน (ถูกบล็อก)', 'ให้แอดมินแก้สถานะเป็น ACTIVE ในแท็บ ' + AL_PINLOCK); throw err_('pin_blocked', MSG.pinBlocked); }
-      if (st.status === 'PAUSED') { userLog_(ctx, null, email, '', 'ใส่รหัสเข้าใช้งาน (ถูกพัก)', 'พักถึง ' + fmtTime_(new Date(st.until))); throw err_('pin_locked', 'ใส่รหัสผ่านผิดหลายครั้ง ให้รอถึง ' + fmtTime_(new Date(st.until)).slice(11, 16) + ' น. แล้วลองใหม่'); }
-      if (ok) { if (st.row && (st.dirty || st.fails || st.round || st.status !== 'ACTIVE')) lockOk_(email, st, ctx.now, LOCK_PIN); return; }
-      const r = lockFail_(email, st, ctx.now, LOCK_PIN);
-      userLog_(ctx, null, email, '', 'ใส่รหัสเข้าใช้งานผิด', 'ครั้งที่ ' + r.fails + (r.round ? ' (หลังพัก)' : '') + (r.status === 'PAUSED' ? ' · พัก ' + OPT.pinLockMinutes + ' นาที' : r.status === 'BLOCKED' ? ' · บล็อก (ปลดในแท็บ ' + AL_PINLOCK + ')' : ''));
-    });
-    if (!ok) { Utilities.sleep(400); throw err_('pin', MSG.pin); }
-  } else {
-    // ยังไม่ได้ตั้ง Sign in with Google: ไม่มีอีเมลให้นับ จึงพักชั่วคราวรวมทุกคน (ไม่บล็อกถาวร)
-    const cache = CacheService.getScriptCache(), key = 'pf:anon';
-    const fails = Number(cache.get(key)) || 0;
-    if (fails >= OPT.pinMaxFails) throw err_('pin_locked', MSG.pinLocked);
-    if (!ok) {
-      cache.put(key, String(fails + 1), OPT.pinLockMinutes * 60);
-      userLog_(ctx, null, '', '', 'ใส่รหัสเข้าใช้งานผิด', 'ครั้งที่ ' + (fails + 1));
-      Utilities.sleep(400);
-      throw err_('pin', MSG.pin);
-    }
-  }
+  emailAttempt_(ctx, null, ok, 'ใส่รหัสเข้าใช้งาน', 'pin:all');
+  if (!ok) { Utilities.sleep(400); throw err_('pin', MSG.pin); }
   userLog_(ctx, null, email, '', 'เข้าใช้งาน', email ? 'Sign in with Google' : 'ไม่ได้ Sign in with Google');
   return { ok: true, s: sign_({ k: 's', e: email, x: ctx.now + OPT.sessionHours * 3600e3 }), email: email };
 }
@@ -354,16 +333,9 @@ function opOpen_(ctx, b) {
   const ss = SpreadsheetApp.getActive();
   const m = missionCtx_(ctx, ss, b.id);
   if (!m.ix.pw) throw err_('no_password', 'ภารกิจนี้ยังไม่ได้ตั้งรหัสภารกิจ ให้กด “เปลี่ยนรหัสภารกิจ” เพื่อตั้งรหัสก่อน');
-  const cache = CacheService.getScriptCache(), key = 'mf:' + m.ix.id + ':' + hex_(sha256_(utf8_(ctx.email || 'anon'))).slice(0, 16);
-  const fails = Number(cache.get(key)) || 0;
-  if (fails >= OPT.mpwMaxFails) { userLog_(ctx, m.ix, ctx.email, '', 'ใส่รหัสภารกิจ (ถูกพัก)', 'ใส่ผิดเกิน ' + OPT.mpwMaxFails + ' ครั้ง'); throw err_('mpw_locked', MSG.mpwLocked); }
-  if (!same_(String(b.mpw || ''), m.ix.pw)) {
-    cache.put(key, String(fails + 1), OPT.mpwLockMinutes * 60);
-    userLog_(ctx, m.ix, ctx.email, '', 'ใส่รหัสภารกิจผิด', 'ครั้งที่ ' + (fails + 1));
-    Utilities.sleep(400);
-    throw err_('mpw', MSG.mpw);
-  }
-  cache.remove(key);
+  const ok = same_(String(b.mpw || ''), m.ix.pw);
+  emailAttempt_(ctx, m.ix, ok, 'ใส่รหัสภารกิจ', 'mpw:' + m.ix.id);
+  if (!ok) { Utilities.sleep(400); throw err_('mpw', MSG.mpw); }
   userLog_(ctx, m.ix, ctx.email, '', 'เข้าภารกิจ', missionLabel_(m.ix));
   return { ok: true, mt: sign_({ k: 'm', m: m.ix.id, e: ctx.email, v: pwTag_(m.ix.pw), x: ctx.now + OPT.missionHours * 3600e3 }) };
 }
@@ -580,41 +552,54 @@ function loginDb_() {
 function canLogin_(p) { return BASE.every(function (k) { return !!p[k]; }) && !!p.role && !!p.username && !!p.salt && !!p.hash; }
 function expired_(p) { return p.endBad || (!!p.end && Utilities.formatDate(new Date(), OPT.tz, 'yyyy-MM-dd') > p.end); }
 
-// ตรวจ 4 อย่างพร้อมกันทุกครั้ง ไม่บอกว่าผิดช่องไหน ผิดติดกัน 5 ครั้งพัก 60 นาที อีก 5 ครั้งบล็อกจนแอดมินปลด
-function credCheck_(ctx, cred, purpose, ix) {
+// ตรวจ 4 อย่างพร้อมกันทุกครั้ง (+ รหัสภารกิจเมื่อ extraOk ถูกส่งมา) ไม่บอกว่าผิดช่องไหน
+// ผิดติดกัน 5 ครั้ง พัก 60 นาที อีก 5 ครั้งบล็อกจนแอดมินปลด · นับทั้ง Username (LOCKED USERS) และ Email (LOCKED EMAILS)
+// ต้องเรียกภายใน withLock_
+function credCheck_(ctx, cred, purpose, ix, extraOk, extraWhy) {
   cred = cred || {};
-  const username = str_(cred.u).toLowerCase(), password = String(cred.p == null ? '' : cred.p);
+  const username = str_(cred.u).toLowerCase(), password = String(cred.p == null ? '' : cred.p), email = ctx.email || '';
   const mission = ix ? missionLabel_(ix) : '';
   const fail = function (event, detail) {
     loginLog_(ctx, username, event, purpose, mission, detail || '');
     Utilities.sleep(600);
     return err_('login_failed', MSG.login);
   };
-  if (!username || !password || username.length > 60 || password.length > 200) { pwHash_(password || 'x', 'no-such-account'); throw fail('LOGIN_FAIL', 'กรอกไม่ครบ'); }
   const people = loginDb_();
-  const who = people.filter(function (p) { return p.username.toLowerCase() === username; });
-  const known = who.length === 1;
-  const p = known && canLogin_(who[0]) && people.filter(function (q) { return q !== who[0] && q.idGov && q.idGov === who[0].idGov; }).length === 0 ? who[0] : null;
-  const lock = known ? lockState_(username, ctx.now) : null;
-  if (lock && (lock.status === 'BLOCKED' || (lock.status === 'PAUSED' && lock.until > ctx.now))) {
-    pwHash_(password, 'no-such-account');
-    throw fail(lock.status === 'BLOCKED' ? 'LOGIN_BLOCKED' : 'LOGIN_PAUSED', lock.status === 'BLOCKED' ? 'Username ถูกบล็อก' : 'Username ถูกพักถึง ' + fmtTime_(new Date(lock.until)));
+  const who = username ? people.filter(function (p) { return p.username.toLowerCase() === username; }) : [];
+  const known = who.length === 1 && username.length <= 60;
+  const lockU = known ? lockState_(username, ctx.now, LOCK_USER) : null;
+  const lockE = email ? lockState_(email, ctx.now, LOCK_EMAIL) : null;
+  const held = function (st) { return st && (st.status === 'BLOCKED' || (st.status === 'PAUSED' && st.until > ctx.now)); };
+  if (held(lockU) || held(lockE)) {
+    pwHash_(password || 'x', 'no-such-account');
+    const w = [];
+    if (held(lockU)) w.push('Username ' + (lockU.status === 'BLOCKED' ? 'ถูกบล็อก' : 'ถูกพักถึง ' + fmtTime_(new Date(lockU.until))));
+    if (held(lockE)) w.push('Email ' + (lockE.status === 'BLOCKED' ? 'ถูกบล็อก' : 'ถูกพักถึง ' + fmtTime_(new Date(lockE.until))));
+    throw fail((held(lockU) && lockU.status === 'BLOCKED') || (held(lockE) && lockE.status === 'BLOCKED') ? 'LOGIN_BLOCKED' : 'LOGIN_PAUSED', w.join(' · '));
   }
-  const okPw = pwCheck_(password, p ? p.salt : '', p ? p.hash : '');
+  const p = known && canLogin_(who[0]) && people.filter(function (q) { return q !== who[0] && q.idGov && q.idGov === who[0].idGov; }).length === 0 ? who[0] : null;
+  const okPw = !!password && password.length <= 200 && pwCheck_(password, p ? p.salt : '', p ? p.hash : '');
   const okId = !!p && same_(p.idGov, digits_(cred.idGov));
   const okBirth = !!p && same_(p.birth, str_(cred.birth));
-  if (!(okPw && okId && okBirth) || !p || expired_(p)) {
-    let ev = 'LOGIN_FAIL', detail = 'ข้อมูลไม่ถูกต้อง';
-    if (p && okPw && okId && okBirth) detail = 'เลยวันสิ้นสุดการใช้งาน';
-    if (lock) {
-      const r = lockFail_(username, lock, ctx.now);
-      detail += ' · ผิดครั้งที่ ' + r.fails + (r.round ? ' (หลังพัก)' : '');
-      if (r.status === 'PAUSED') { ev = 'LOGIN_PAUSED'; detail += ' · พัก ' + OPT.loginPauseMinutes + ' นาที'; }
-      if (r.status === 'BLOCKED') { ev = 'LOGIN_BLOCKED'; detail += ' · บล็อก (ให้แอดมินแก้สถานะเป็น ACTIVE ในแท็บ ' + AL_LOCK + ')'; }
-    } else if (!known) detail = 'ไม่พบ Username';
+  const okExtra = extraOk === undefined ? true : !!extraOk;
+  if (!(okPw && okId && okBirth && okExtra) || !p || expired_(p)) {
+    let detail = !username || !password ? 'กรอกไม่ครบ' : !known ? 'ไม่พบ Username' : 'ข้อมูลไม่ถูกต้อง';
+    if (p && okPw && okId && okBirth && !okExtra) detail = extraWhy || 'รหัสภารกิจไม่ถูกต้อง';
+    else if (p && okPw && okId && okBirth) detail = 'เลยวันสิ้นสุดการใช้งาน';
+    let ev = 'LOGIN_FAIL';
+    const add = function (label, key, st, kind) {
+      if (!st) return;
+      const r = lockFail_(key, st, ctx.now, kind);
+      detail += ' · ' + label + ' ผิดครั้งที่ ' + r.fails + (r.round ? ' (หลังพัก)' : '');
+      if (r.status === 'PAUSED') { if (ev === 'LOGIN_FAIL') ev = 'LOGIN_PAUSED'; detail += ' พัก ' + OPT.pauseMinutes + ' นาที'; }
+      if (r.status === 'BLOCKED') { ev = 'LOGIN_BLOCKED'; detail += ' บล็อก (ปลดในแท็บ ' + kind.tab + ')'; }
+    };
+    add('Username', username, lockU, LOCK_USER);
+    add('Email', email, lockE, LOCK_EMAIL);
     throw fail(ev, detail);
   }
-  if (lock && (lock.row && (lock.dirty || lock.fails || lock.round || lock.status !== 'ACTIVE'))) lockOk_(username, lock, ctx.now);
+  lockReset_(username, lockU, ctx.now, LOCK_USER);
+  lockReset_(email, lockE, ctx.now, LOCK_EMAIL);
   loginLog_(ctx, username, 'LOGIN_OK', purpose, mission, '');
   return p;
 }
@@ -639,12 +624,8 @@ function opClose_(ctx, b) {
   return withLock_(function () {
     const ss = SpreadsheetApp.getActive();
     const m = missionCtx_(ctx, ss, b.id);
-    if (!m.ix.pw || !same_(String(b.mpw || ''), m.ix.pw)) {   // ปิดภารกิจต้องใช้รหัสภารกิจด้วย (เหมือนเปิดอีกครั้ง)
-      loginLog_(ctx, str_(b.cred && b.cred.u).toLowerCase(), 'LOGIN_FAIL', 'ปิดภารกิจ', missionLabel_(m.ix), m.ix.pw ? 'รหัสภารกิจไม่ถูกต้อง' : 'ภารกิจยังไม่ได้ตั้งรหัส');
-      Utilities.sleep(600);
-      throw err_('login_failed', MSG.login);
-    }
-    const p = credCheck_(ctx, b.cred, 'ปิดภารกิจ', m.ix);
+    // ปิดภารกิจต้องใช้รหัสภารกิจด้วย ตรวจพร้อมกับข้อมูล Login และนับเป็นครั้งที่ผิดเหมือนกัน
+    const p = credCheck_(ctx, b.cred, 'ปิดภารกิจ', m.ix, !!m.ix.pw && same_(String(b.mpw || ''), m.ix.pw), m.ix.pw ? 'รหัสภารกิจไม่ถูกต้อง' : 'ภารกิจยังไม่ได้ตั้งรหัส');
     if (m.ix.status === 'CLOSED') return { ok: true, already: true };
     const t = fmtTime_(new Date(ctx.now));
     setIndex_(ss, m.ix.row, { status: 'CLOSED', closeInfo: 'ปิด ' + t + ' โดย ' + p.username });
@@ -659,12 +640,7 @@ function opReopen_(ctx, b) {
   return withLock_(function () {
     const ss = SpreadsheetApp.getActive();
     const m = missionCtx_(ctx, ss, b.id);
-    if (!m.ix.pw || !same_(String(b.mpw || ''), m.ix.pw)) {
-      loginLog_(ctx, str_(b.cred && b.cred.u).toLowerCase(), 'LOGIN_FAIL', 'เปิดภารกิจอีกครั้ง', missionLabel_(m.ix), 'รหัสภารกิจไม่ถูกต้อง');
-      Utilities.sleep(600);
-      throw err_('login_failed', MSG.login);
-    }
-    const p = credCheck_(ctx, b.cred, 'เปิดภารกิจอีกครั้ง', m.ix);
+    const p = credCheck_(ctx, b.cred, 'เปิดภารกิจอีกครั้ง', m.ix, !!m.ix.pw && same_(String(b.mpw || ''), m.ix.pw), m.ix.pw ? 'รหัสภารกิจไม่ถูกต้อง' : 'ภารกิจยังไม่ได้ตั้งรหัส');
     const t = fmtTime_(new Date(ctx.now));
     setIndex_(ss, m.ix.row, { status: 'OPEN', closeInfo: 'เปิดอีกครั้ง ' + t + ' โดย ' + p.username });
     adminAct_(ctx, p.username, m.ix, 'เปิดภารกิจอีกครั้ง', missionLabel_(m.ix));
@@ -794,6 +770,31 @@ function lockFail_(key, st, now, kind) {
   return out;
 }
 function lockOk_(key, st, now, kind) { st.status = 'ACTIVE'; st.fails = 0; st.round = 0; st.until = 0; lockWrite_(key, st, now, kind); }
+function lockReset_(key, st, now, kind) { if (st && st.row && (st.dirty || st.fails || st.round || st.status !== 'ACTIVE')) lockOk_(key, st, now, kind); }
+function untilTxt_(t) { return fmtTime_(new Date(t)).slice(11, 16) + ' น.'; }
+// รหัสเว็บไซต์ / รหัสภารกิจ: นับต่อ Email (LOCKED EMAILS) ถูกพักหรือบล็อกแล้วไม่ตรวจรหัส
+// ยังไม่ได้ตั้ง Sign in with Google (ไม่มีอีเมล): พักชั่วคราวใน cache ตามกติกาเดียวกัน แต่ไม่บล็อกถาวร
+function emailAttempt_(ctx, ix, ok, what, anonKey) {
+  const email = ctx.email;
+  if (!email) {
+    const cache = CacheService.getScriptCache(), key = 'af:' + anonKey, fails = Number(cache.get(key)) || 0;
+    if (fails >= OPT.maxFails) throw err_('locked', MSG.locked);
+    if (ok) { if (fails) cache.remove(key); return; }
+    cache.put(key, String(fails + 1), OPT.pauseMinutes * 60);
+    userLog_(ctx, ix, '', '', what + 'ผิด', 'ครั้งที่ ' + (fails + 1));
+    return;
+  }
+  withLock_(function () {
+    const st = lockState_(email, ctx.now, LOCK_EMAIL);
+    if (st.status === 'BLOCKED') { userLog_(ctx, ix, email, '', what + ' (ถูกบล็อก)', 'ให้แอดมินแก้สถานะเป็น ACTIVE ในแท็บ ' + AL_PINLOCK); throw err_('blocked', MSG.blocked); }
+    if (st.status === 'PAUSED') { userLog_(ctx, ix, email, '', what + ' (ถูกพัก)', 'พักถึง ' + fmtTime_(new Date(st.until))); throw err_('locked', 'ใส่ข้อมูลผิดหลายครั้ง ให้รอถึง ' + untilTxt_(st.until) + ' แล้วลองใหม่'); }
+    // ใส่ถูกแล้วเริ่มนับใหม่ ยกเว้นช่วงหลังพัก (LAST_TRY): รหัสเว็บไซต์ / รหัสภารกิจที่ถูกไม่ล้างรอบที่ 2
+    // จะล้างได้ด้วยการ Login ด้วย LOGIN DATABASE สำเร็จ หรือแอดมินแก้สถานะเป็น ACTIVE
+    if (ok) { if (st.status !== 'LAST_TRY') lockReset_(email, st, ctx.now, LOCK_EMAIL); return; }
+    const r = lockFail_(email, st, ctx.now, LOCK_EMAIL);
+    userLog_(ctx, ix, email, '', what + 'ผิด', 'ครั้งที่ ' + r.fails + (r.round ? ' (หลังพัก)' : '') + (r.status === 'PAUSED' ? ' · พัก ' + OPT.pauseMinutes + ' นาที' : r.status === 'BLOCKED' ? ' · บล็อก (ปลดในแท็บ ' + AL_PINLOCK + ')' : ''));
+  });
+}
 // 'dd/MM/yyyy HH:mm:ss' (เวลาไทย) → ms
 function parseTime_(s) {
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4}) (\d{1,2}):(\d{2}):(\d{2})$/.exec(str_(s));
@@ -1030,7 +1031,7 @@ function setup() {
   logTab_(prop_(PROP.ulog), UL_HOME, UL_HOME_HEAD);
   logTab_(prop_(PROP.alog), AL_LOGIN, AL_LOGIN_HEAD);
   logTab_(prop_(PROP.alog), AL_ACT, AL_ACT_HEAD);
-  lockSheet_(LOCK_USER); lockSheet_(LOCK_PIN);
+  lockSheet_(LOCK_USER); lockSheet_(LOCK_EMAIL);
   try { UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=x', { muteHttpExceptions: true }); } catch (e) { /* ขอสิทธิ์ UrlFetch ไว้ล่วงหน้า */ }
   Logger.log('ภารกิจในแท็บ ' + INDEX_SHEET + ': ' + ix.rows.length + ' · ยังไม่มีรหัสภารกิจ: ' + ix.rows.filter(function (r) { return !r.pw; }).length);
   Logger.log(prop_(PROP.cid) ? 'เปิดใช้ Sign in with Google แล้ว' : 'ยังไม่ได้ใส่ googleClientId: เข้าใช้งานได้โดยไม่ต้อง Sign in with Google (ประวัติจะไม่มีอีเมล)');
