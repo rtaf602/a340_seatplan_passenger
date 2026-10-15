@@ -80,7 +80,7 @@ select option{color:var(--ink);font-weight:500}
 .sw.mon{width:12px;height:6px;border-radius:2px;margin-right:-3px}
 .sw-empty{background:var(--seat);border:1.5px solid var(--rowno)}
 .sw-occ{background:var(--accent)}
-.sw-warn{background:var(--seat);border:1.5px solid var(--rowno);box-shadow:inset 0 -5px 0 var(--warn)}
+.sw-warn{background:linear-gradient(to top,var(--warn) 4px,var(--seat) 4px);border:1.5px solid var(--rowno)}
 .sw-bad{background:var(--bad-soft);border:1.5px solid var(--bad)}
 .sw-crew{background:repeating-linear-gradient(135deg,var(--crew-soft) 0 3px,transparent 3px 6px);border:1.5px solid var(--crew)}
 
@@ -105,7 +105,8 @@ select option{color:var(--ink);font-weight:500}
 .seat .s{min-height:38px;border-radius:6px 6px 3px 3px;background:var(--seat);color:var(--rowno);font-family:var(--mono);font-weight:600;font-size:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1.5px solid var(--rowno);position:relative;overflow:hidden}
 .seat:hover .s{box-shadow:0 0 0 2px var(--ink)}
 .seat.occ .s{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.seat[data-s="1"] .s{box-shadow:inset 0 -5px 0 var(--warn)}
+/* แถบสีเหลืองล่างที่นั่งขัดข้อง: ใช้ ::before แทน inset box-shadow เพราะ html2canvas (EXPORT TO PDF) วาด inset shadow เต็มช่อง */
+.seat[data-s="1"] .s::before{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--warn);pointer-events:none}
 .seat[data-s="1"] .s::after{content:"!";position:absolute;top:0;right:3px;font-size:11px;color:var(--warn);font-weight:700}
 .seat.occ[data-s="1"] .s::after{color:#ffd65a}
 .seat[data-s="2"] .s{background:var(--bad-soft);border-color:var(--bad);color:var(--bad);cursor:not-allowed}
