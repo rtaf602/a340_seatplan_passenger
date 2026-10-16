@@ -356,7 +356,9 @@ function credFlow(kind,m){
 /* ----- new mission ----- */
 var nDate=dateSel($('nDate'),{ph:['1','OCT','26'],years:flightYears()});
 var nBirth=dateSel($('nBirth'),{ph:['วัน','เดือน','ปี พ.ศ.'],months:MON_TH,years:birthYears});
+var newRid='';   /* รหัสคำขอของฟอร์มนี้: กดซ้ำหรือเน็ตหลุดแล้วกดใหม่ ระบบหลังบ้านจะไม่สร้างภารกิจซ้ำ */
 $('bNew').addEventListener('click',function(){
+  newRid=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);
   ['nSector','nName','nFlight','nRoute','nPw','nPw2','nBy','nUser','nPass','nIdGov'].forEach(function(k){$(k).value=''});nDate.set('','','');nBirth.set('','','');
   $('nErr').hidden=true;$('nYes').disabled=false;showDlg($('newDlg'));setTimeout(function(){$('nSector').focus()},50)});
 $('nNo').addEventListener('click',function(){hideDlg($('newDlg'))});
@@ -372,7 +374,7 @@ $('nYes').addEventListener('click',function(){
   var b=nBirth.parts(),cred={u:$('nUser').value.trim(),p:$('nPass').value,idGov:$('nIdGov').value.replace(/\D/g,''),birth:nBirth.complete()?(+b.y-543)+'-'+p2(+b.m+1)+'-'+p2(+b.d):''};
   if(!cred.u||!cred.p||!cred.idGov||!cred.birth)return err('กรอก Username, Password, หมายเลขบัตรข้าราชการ และวันเดือนปีเกิดให้ครบ');
   $('nYes').disabled=true;$('nErr').hidden=true;
-  api({action:'create',by:$('nBy').value.trim(),info:info,mpw:$('nPw').value,cred:cred}).then(function(res){
+  api({action:'create',rid:newRid,by:$('nBy').value.trim(),info:info,mpw:$('nPw').value,cred:cred}).then(function(res){
     if(authFail(res)){hideDlg($('newDlg'));return}
     if(!res||!res.ok){err((res&&res.message)||'เปิดภารกิจไม่สำเร็จ');$('nYes').disabled=false;$('nPass').value='';return}
     mtok[res.id]=res.mt;hideDlg($('newDlg'));toast('เปิดภารกิจใหม่แล้ว');location.hash='m='+res.id;

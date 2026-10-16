@@ -339,6 +339,13 @@ function opCreate_(ctx, b) {
   return withLock_(function () {
     const ss = SpreadsheetApp.getActive();
     const p = credCheck_(ctx, b.cred, 'เปิดภารกิจใหม่', null);   // ต้อง Login ด้วย LOGIN DATABASE เหมือนหน้า ADMIN
+    // กดซ้ำ / เน็ตหลุดแล้วกดใหม่ด้วยฟอร์มเดิม (รหัสคำขอเดิม) → คืนภารกิจที่สร้างไปแล้ว ไม่สร้างแท็บซ้ำ
+    const rid = /^[A-Za-z0-9-]{8,64}$/.test(String(b.rid || '')) ? 'create:' + b.rid : '';
+    const done = rid ? CacheService.getScriptCache().get(rid) : null;
+    if (done && sheetById_(ss, done)) {
+      const r0 = indexRow_(ss, done);
+      if (r0) return { ok: true, id: done, again: true, mt: sign_({ k: 'm', m: done, e: ctx.email, v: pwTag_(r0.pw), x: ctx.now + OPT.missionHours * 3600e3 }) };
+    }
     const ix = indexSheet_(ss);
     const v = {};
     INFO.forEach(function (f) { if (f[0] !== 'aircraft') v[f[0]] = normInfo_(f[0], info[f[0]]); });
@@ -355,6 +362,7 @@ function opCreate_(ctx, b) {
     userLog_(ctx, null, ctx.email, by, 'เปิดภารกิจใหม่', title + ' · ' + detail);
     userLog_(ctx, rec, ctx.email, by, 'เปิดภารกิจ', detail);
     adminAct_(ctx, p.username, rec, 'เปิดภารกิจใหม่', detail);
+    if (rid) { try { CacheService.getScriptCache().put(rid, id, 1800); } catch (e) { /* ไม่เป็นไร */ } }
     return { ok: true, id: id, mt: sign_({ k: 'm', m: id, e: ctx.email, v: pwTag_(pw), x: ctx.now + OPT.missionHours * 3600e3 }) };
   });
 }
@@ -902,7 +910,8 @@ function adminAct_(ctx, username, ix, action, detail) {
 function withLock_(fn) {
   const lock = LockService.getScriptLock();
   try { lock.waitLock(25000); } catch (e) { throw err_('busy', MSG.busy); }
-  try { return fn(); } finally { lock.releaseLock(); }
+  // เขียนลงชีตให้เสร็จจริง (flush) ก่อนปล่อยคิว เครื่องถัดไปจะได้อ่านข้อมูลล่าสุดเสมอ
+  try { return fn(); } finally { try { SpreadsheetApp.flush(); } catch (e) { /* ไม่มีอะไรค้าง */ } lock.releaseLock(); }
 }
 function str_(v) { return v === null || v === undefined ? '' : String(v).trim(); }
 function norm_(v) { return str_(v).toLowerCase().replace(/\s+/g, ' '); }
