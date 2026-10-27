@@ -623,7 +623,7 @@ function renderTools(){
   if(!saving){sb.textContent=n?'SAVE ('+n+')':'SAVE';sb.disabled=!n||ro}
   $('bClear').disabled=ro;$('aClear').disabled=ro;
   var ls=M&&M.lastSave,lb=$('lastSave');lb.textContent='';
-  if(ls&&ls.at){var who=[ls.e,ls.u,ls.by&&ls.by!==ls.u?ls.by:''].filter(Boolean);
+  if(ls&&ls.at){var who=[ls.e,ls.by&&ls.by!==ls.u?ls.by:''].filter(Boolean);   // ไม่แสดง Username (SAVE จากหน้า ADMIN: ls.by = Username)
     lb.appendChild(document.createTextNode('SAVE ล่าสุด: '+(who.length?who.join(' · ')+' · ':'')));lb.appendChild(el('b','lsat',fmtTH(ls.at)))}
   else lb.textContent='ยังไม่เคย SAVE';
   var st=zoneStats().sum,sm=$('seatSum'),n;
