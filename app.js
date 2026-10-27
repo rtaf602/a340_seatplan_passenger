@@ -1188,7 +1188,10 @@ function start(){
   initWid().then(function(){
     restoreAuth();
     rawApi({action:'config'}).then(function(res){clientId=res&&res.googleClientId||'';
-      if(!res||res.api!==NEED_API){oldApi=true;sess='';sstore(AUTH,null);showGate(OLD_API_MSG);return}
+      if(!res||res.api!==NEED_API){oldApi=true;sess='';sstore(AUTH,null);
+        if(res&&!res.ok)OLD_API_MSG='ระบบหลังบ้านตอบข้อผิดพลาด: '+(res.message||res.error||'ไม่ทราบสาเหตุ')+' (ลิงก์ '+API.slice(-12)+')';
+        else OLD_API_MSG+=' · ลิงก์ที่หน้าเว็บใช้ลงท้าย '+API.slice(-12)+' ตอบรุ่น '+(res&&res.api||'เก่า');
+        showGate(OLD_API_MSG);return}
       if(sess){route(false);startPing()}else route(true)},function(){showGate('ติดต่อระบบไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วโหลดหน้าใหม่')});
   });
 }
