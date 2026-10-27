@@ -435,7 +435,7 @@ function normRoute(v){return String(v||'').toUpperCase().trim().replace(/\s*[-�
    Seat plan page
    ===================================================================== */
 function showPlan(id){
-  if(curId!==id){curId=id;M=null;datePartial=false;D=loadDraft(id);$('zones').textContent='';$('sync').textContent='กำลังโหลดข้อมูล…';$('whoP').value='';$('saveBar').hidden=true;setView('pax',true);
+  if(curId!==id){curId=id;M=null;datePartial=false;D=loadDraft(id);$('zones').textContent='';$('sync').hidden=true;$('whoP').value='';$('saveBar').hidden=true;setView('pax',true);
     if(atok&&admMission!==id)dropAdmin()}
   $('pageMissions').hidden=true;$('pagePlan').hidden=false;
   return load();
@@ -463,8 +463,8 @@ function load(){
     if(prev&&M.lastSave&&prev.at!==M.lastSave.at&&!justSaved&&pending().n)toast('มีการ SAVE จาก '+(M.lastSave.by||'เครื่องอื่น')+' เมื่อ '+fmtTH(M.lastSave.at)+' ผังแสดงข้อมูลล่าสุดแล้ว');
     justSaved=false;
     cleanDraft();persistDraft();renderAll();
-    $('sync').textContent='ข้อมูลจาก Google Sheet แท็บ “'+M.tab+'” · สภาพที่นั่ง/จอจากไฟล์ Seat Plan 340 (For Admin) · ตรวจการบันทึกจากเครื่องอื่นทุก 10 วินาที · โหลดล่าสุด '+fmtTH(new Date().toISOString());
-  }).catch(function(){$('sync').textContent='ดึงข้อมูลจาก Google Sheet ไม่ได้ จะลองใหม่อัตโนมัติ'})
+    $('sync').hidden=true;
+  }).catch(function(){$('sync').textContent='ดึงข้อมูลจาก Google Sheet ไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วกด Ctrl+F5';$('sync').hidden=false})
   .then(function(){loading=false});
 }
 var justSaved=false;
