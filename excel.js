@@ -117,7 +117,7 @@ function build(m){
   m.zones.forEach(function(z){
     var b=blockStart();R=sh.row;
     sh.style(R,FIRST,R,LAST,S.cabin);sh.merge(R,FIRST,R,9,z.title,S.zoneTitle);
-    sh.merge(R,11,R,12,'ที่นั่งว่าง '+z.free,z.free?S.badge:S.badgeZero);sh.h(R,20);R++;
+    sh.merge(R,11,R,12,z.noCount?(z.freeLabel||''):(z.freeLabel||'ที่นั่งว่าง ')+z.free,z.free?S.badge:S.badgeZero);sh.h(R,20);R++;
     sh.style(R,FIRST,R,LAST,S.cabin);sh.h(R,5);R++;
     var run=null;
     function endRun(){if(run){sh.box(run[0],3,R-1,12,'medium',C.crew);run=null}}

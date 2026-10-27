@@ -1,7 +1,9 @@
 /* Seat Plan A340 · Passenger
  * Gate: access PIN (+ Sign in with Google when the server has a client ID) → mission list → mission password → seat plan.
- * Nothing secret is kept in the browser: the server checks every password and returns signed tokens that live in memory
- * only, so reloading the page asks again. Drafts (unsaved edits) are kept on this device until SAVE.
+ * Nothing secret is kept in the browser: the server checks every password and returns signed tokens. The tokens are kept
+ * for this tab only (sessionStorage): reloading keeps them, closing the tab drops them. All tokens share one clock
+ * (90 minutes, "ใช้งานต่อ" adds 90). Each tab has its own window id; an email / username works in one window at a time.
+ * Drafts (unsaved edits) are kept on this device until SAVE.
  * Seat and monitor condition (with NOTE) come from "Seat Plan 340 (For Admin)" through the Apps Script. */
 (function(){
 'use strict';
@@ -14,9 +16,22 @@ function anyDialogOpen(){return !!document.querySelector('dialog[open]')}
 var CFG=window.SEATPLAN_CONFIG||{};
 var API=String(CFG.API_URL||'').trim();
 var sess='',email='',clientId='',gsiCred='';
-var mtok={};               // mission id -> mission token (memory only)
-var atok='',admUser='';    // ADMIN token for the open mission
-function rawApi(body){
+var wid='',clockX=0,srvOff=0;          // window id of this tab · end of the one clock (server ms) · server time minus this device
+var mtok={};                           // mission id -> mission token
+var atok='',admUser='',admMission='';  // ADMIN token for the open mission
+var AUTH='sp-a340-auth',WIDK='sp-a340-w',restoreView=false;
+function sstore(k,v){try{if(v===undefined)return sessionStorage.getItem(k);if(v===null)sessionStorage.removeItem(k);else sessionStorage.setItem(k,v)}catch(e){}return null}
+function newWid(){var a=new Uint8Array(12);if(window.crypto&&crypto.getRandomValues)crypto.getRandomValues(a);else for(var i=0;i<a.length;i++)a[i]=Math.random()*256|0;
+  return 'w'+[].map.call(a,function(b){return ('0'+b.toString(16)).slice(-2)}).join('')}
+/* tokens of this tab: kept across reloads, gone when the tab closes */
+function saveAuth(){if(!sess){sstore(AUTH,null);return}
+  sstore(AUTH,JSON.stringify({s:sess,e:email,x:clockX,o:srvOff,mt:mtok,at:atok,au:admUser,am:admMission,vt:vtok,view:view}))}
+function restoreAuth(){var a=null;try{a=JSON.parse(sstore(AUTH)||'null')}catch(e){a=null}
+  if(!a||!a.s||!(a.x>Date.now()+(a.o||0)))return;
+  sess=a.s;email=a.e||'';clockX=a.x;srvOff=a.o||0;mtok=a.mt||{};atok=a.at||'';admUser=a.au||'';admMission=a.am||'';vtok=a.vt||'';restoreView=a.view==='admin'}
+function srvNow(){return Date.now()+srvOff}
+function hm(ms){var b=bkk(new Date(ms));return p2(b.h)+':'+p2(b.m)}
+function rawApi(body){body.w=wid;
   return fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}).then(function(r){return r.json()});
 }
 function api(body){body.s=sess;return rawApi(body)}
@@ -78,7 +93,7 @@ var view='pax';        // 'pax' or 'admin'
 var curId=null;
 function draftKey(id){return 'pax-a340-draft2-'+id}
 function loadDraft(id){var d=null;try{d=JSON.parse(localStorage.getItem(draftKey(id))||'null')}catch(e){}
-  d=d||{};return {info:d.info||{},infoBase:d.infoBase||{},pax:d.pax||{},crew:d.crew||null,crewPax:d.crewPax||{}}}
+  d=d||{};return {info:d.info||{},infoBase:d.infoBase||{},pax:d.pax||{},crew:d.crew||null,crewBase:d.crewBase||null,crewPax:d.crewPax||{}}}
 function persistDraft(){if(!curId||!D)return;try{
   if(!Object.keys(D.info).length&&!Object.keys(D.pax).length&&!D.crew&&!Object.keys(D.crewPax).length)localStorage.removeItem(draftKey(curId));
   else localStorage.setItem(draftKey(curId),JSON.stringify(D))}catch(e){}}
@@ -94,7 +109,7 @@ function status(id){var s=M&&M.status&&M.status[id];return {s:s?s.s|0:0,m:s?s.m|
 function closed(){return !!(M&&M.mstatus==='CLOSED')}
 function cleanDraft(){if(!D)return;
   INFO_KEYS.forEach(function(k){if(k in D.info&&D.info[k]===savedInfo(k)){delete D.info[k];delete D.infoBase[k]}});
-  if(D.crew){var c=savedCrew();if(D.crew.front===c.front&&D.crew.rear===c.rear)D.crew=null}
+  if(D.crew){var c=savedCrew();if(D.crew.front===c.front&&D.crew.rear===c.rear){D.crew=null;D.crewBase=null}}
   Object.keys(D.pax).forEach(function(id){if(!SEAT[id]||same(D.pax[id].val,M&&M.pax[id]))delete D.pax[id]});
   if(M&&M.crewPax)Object.keys(D.crewPax).forEach(function(id){if(!SEAT[id]||same(D.crewPax[id].val,M.crewPax[id]))delete D.crewPax[id]});
 }
@@ -113,12 +128,17 @@ function crewRows(c){var set={},f=crewFront(c.front),ri=ROWS.indexOf(c.rear),i;
   return set}
 function isCrew(id,set){return !!(set||crewRows(getCrew()))[SEAT[id].row]}
 
-/* one category per seat: crew > occupied > unusable > free */
-function zoneStats(){var set=crewRows(getCrew()),T={},sum={t:0,crew:0,occ:0,bad:0,free:0};
-  ZONES.forEach(function(z){T[z.key]={t:0,crew:0,occ:0,bad:0,free:0}});
-  SEATS.forEach(function(id){var z=T[SEAT[id].zone];z.t++;
-    if(isCrew(id,set))z.crew++;else if(getPax(id))z.occ++;else if(status(id).s===2)z.bad++;else z.free++});
-  ZONES.forEach(function(z){var v=T[z.key];['t','crew','occ','bad','free'].forEach(function(k){sum[k]+=v[k]})});
+/* seat counts: CREW ZONE first, then passengers. A seat that cannot be used still counts as free (a name can go there
+   when the plane is full); freeBad says how many of the free seats are such seats. crewFree = CREW ZONE seats without a crew name */
+var SK=['t','crew','occ','bad','free','freeBad','crewOcc','crewFree'];
+function zoneStats(){var set=crewRows(getCrew()),T={},sum={};
+  function blank(){var o={};SK.forEach(function(k){o[k]=0});return o}
+  sum=blank();ZONES.forEach(function(z){T[z.key]=blank()});
+  SEATS.forEach(function(id){var z=T[SEAT[id].zone],bad=status(id).s===2;z.t++;
+    if(isCrew(id,set)){z.crew++;if(getCrewPax(id))z.crewOcc++;else z.crewFree++;return}
+    if(bad)z.bad++;
+    if(getPax(id))z.occ++;else{z.free++;if(bad)z.freeBad++}});
+  ZONES.forEach(function(z){var v=T[z.key];SK.forEach(function(k){sum[k]+=v[k]})});
   T.sum=sum;return T}
 
 /* ---------- time (Thai local time, UTC+7) ---------- */
@@ -185,7 +205,7 @@ function setFlight(ds,v){var m=/^(\d{1,2})\s+([A-Z]{3})\s+(\d{2})$/.exec(String(
    ===================================================================== */
 function showGate(err){
   $('pageMissions').hidden=true;$('pagePlan').hidden=true;
-  $('gate').hidden=false;$('gateErr').textContent=err||'';$('gateErr').hidden=!err;$('gateBtn').disabled=false;
+  $('gate').hidden=false;$('gateErr').textContent=err||'';$('gateErr').hidden=!err;$('gateErr').classList.remove('info');$('gateBtn').disabled=false;
   $('gatePin').value='';$('gsiBox').hidden=!clientId;$('pinHead').hidden=!clientId;
   if(clientId){gsiCred='';$('gsiOk').hidden=true;gsiStep();initGsi()}
   else setTimeout(function(){$('gatePin').focus()},50);
@@ -211,21 +231,33 @@ $('gateBtn').addEventListener('click',function(){
   var p=$('gatePin').value.trim();if(!p){$('gatePin').focus();return}
   if(clientId&&!gsiCred){$('gateErr').textContent='ขั้นที่ 1: กดปุ่ม Sign in with Google ก่อน แล้วจึงใส่รหัสผ่าน';$('gateErr').hidden=false;return}
   $('gateBtn').disabled=true;
+  var gateFail=function(msg){$('gateErr').textContent=msg;$('gateErr').hidden=false;$('gateBtn').disabled=false;$('gatePin').value='';$('gatePin').focus()};
   rawApi({action:'enter',pin:p,credential:gsiCred}).then(function(res){
+    if(res&&res.error==='takeover_wait'){waitTakeover(res,{},gotSession,gateFail);return}
     if(!res||!res.ok){
       if(res&&res.error==='google'){gsiCred='';$('gsiOk').hidden=true;gsiStep()}
-      $('gateErr').textContent=(res&&res.message)||'เข้าใช้งานไม่สำเร็จ';$('gateErr').hidden=false;$('gateBtn').disabled=false;$('gatePin').value='';$('gatePin').focus();return}
-    sess=res.s;email=res.email||'';gsiCred='';hideGate();route(true);
-  },function(){$('gateErr').textContent='ติดต่อระบบไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง';$('gateErr').hidden=false;$('gateBtn').disabled=false});
+      gateFail((res&&res.message)||'เข้าใช้งานไม่สำเร็จ');return}
+    gotSession(res);
+  },function(){gateFail('ติดต่อระบบไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง')});
 });
+function gotSession(res){sess=res.s;email=res.email||'';gsiCred='';clockX=res.x||0;if(res.now)srvOff=res.now-Date.now();
+  expWarned=0;expDismissed=0;saveAuth();hideGate();route(true);startPing()}
 $('gatePin').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('gateBtn').click()}});
 /* errors any request can get: the access session ran out, the mission password is needed again, ADMIN timed out */
 function authFail(res){
   if(!res)return false;
-  if(res.error==='session'){sess='';mtok={};vtok='';dropAdmin();showGate(res.message);return true}
-  if(res.error==='mission_token'&&curId){delete mtok[curId];var id=curId;leavePlan();toast(res.message||'ต้องใส่รหัสภารกิจใหม่',true);pendingOpen=id;location.hash='';return true}
-  if(res.error==='admin_token'){dropAdmin();setView('pax');toast(res.message||'หมดเวลาของหน้า ADMIN',true);return true}
+  if(res.error==='session'||res.error==='kicked'||res.error==='blocked_out'){forceOut(res.message||'หมดเวลาใช้งาน ให้เข้าสู่ระบบใหม่');return true}
+  if(res.error==='mission_token'&&curId){mpwChanged();return true}
+  if(res.error==='admin_token'){var was=view==='admin';dropAdmin();setView('pax');if(was||res.message)ask('ออกจากหน้า ADMIN',res.message||'หมดเวลาของหน้า ADMIN','',null);return true}
   return false;
+}
+/* out of the system (time up, logged in from another window, blocked, Logout): tokens go, drafts stay on this device */
+function forceOut(msg){
+  stopTk();sess='';mtok={};atok='';admUser='';admMission='';vtok='';clockX=0;sstore(AUTH,null);
+  [].forEach.call(document.querySelectorAll('dialog[open]'),function(d){hideDlg(d)});
+  curId=null;M=null;D=null;view='pax';ML=[];$('saveBar').hidden=true;
+  if(location.hash)history.replaceState(null,'',location.pathname+location.search);
+  showGate(msg);
 }
 
 /* =====================================================================
@@ -242,19 +274,19 @@ function setTab(v){mtab=v;[].forEach.call(document.querySelectorAll('#mtabs butt
   // ภารกิจที่เสร็จสิ้น / ทั้งหมด ต้อง Login ด้วย LOGIN DATABASE ก่อน
   credDialog({title:'Login เพื่อดู'+(v==='closed'?'ภารกิจที่เสร็จสิ้นเรียบร้อย':'ภารกิจทั้งหมด'),sub:'ยืนยันตัวตนด้วยข้อมูลใน LOGIN DATABASE',yes:'Login',
     submit:function(d){return api({action:'missions.unlock',cred:d.cred})},
-    done:function(res){vtok=res.vt;toast('Login แล้ว ดูภารกิจทั้งหมดได้ '+(res.hours||2)+' ชั่วโมง');loadMissions().then(function(){setTab(v)})}});
+    wait:{},done:function(res){vtok=res.vt;saveAuth();toast('Login แล้ว ดูภารกิจทั้งหมดได้ถึง '+hm(clockX)+' น.');loadMissions().then(function(){setTab(v)})}});
 })});
 function showMissions(first){
   leavePlan();
   $('pagePlan').hidden=true;$('pageMissions').hidden=false;document.title='A340 Passenger Seat Plan';
-  $('meM').textContent=email?'Sign in: '+email:'';
+  paintAcct();
   return loadMissions(first);
 }
 function loadMissions(first){
   return api({action:'missions',first:!!first,vt:vtok||undefined}).then(function(res){
     if(authFail(res))return;
     if(!res||!res.ok)throw new Error(res&&res.message||'load');
-    if(vtok&&!res.canView){vtok='';if(mtab!=='open'){setTab('open');toast('หมดเวลาการดูภารกิจที่เสร็จสิ้น ให้ Login ใหม่',true)}}
+    if(vtok&&!res.canView){vtok='';saveAuth();if(mtab!=='open')setTab('open');ask('ดูภารกิจที่เสร็จสิ้น / ภารกิจทั้งหมด',res.viewWhy||'หมดเวลาการดูภารกิจที่เสร็จสิ้น ให้ Login ใหม่','',null)}
     ML=res.missions||[];$('noticeM').hidden=true;renderMissions();
     if(pendingOpen){var m=ML.filter(function(x){return x.id===pendingOpen})[0];pendingOpen=null;if(m)openMission(m)}
   }).catch(function(){$('noticeM').hidden=false;$('noticeM').textContent='ดึงรายการภารกิจไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วกด “โหลดใหม่”'});
@@ -298,10 +330,22 @@ var mpwFor=null;
 function openMission(m){
   if(!m.hasPw){ask('ยังไม่ได้ตั้งรหัสภารกิจ','ภารกิจนี้สร้างก่อนมีรหัสภารกิจ ให้กด “ตั้งรหัสภารกิจ” (ต้องใช้ Username, Password, เลขบัตรข้าราชการ และวันเดือนปีเกิด) แล้วจึงเข้าภารกิจได้','ตั้งรหัสภารกิจ',function(){credFlow('pw',m)});return}
   if(mtok[m.id]){location.hash='m='+encodeURIComponent(m.id);return}
-  mpwFor=m;$('mpwTitle').textContent='ใส่รหัสภารกิจ';$('mpwSub').textContent=[m.flight,m.sectorNo?'Sector '+m.sectorNo:'',m.route,m.date].filter(Boolean).join(' · ')+(m.name?' — '+m.name:'');
+  mpwFor=m;$('mpwTitle').textContent='ใส่รหัสภารกิจ';$('mpwNo').textContent='ยกเลิก';$('mpwYes').textContent='เข้าภารกิจ';$('mpwSub').textContent=[m.flight,m.sectorNo?'Sector '+m.sectorNo:'',m.route,m.date].filter(Boolean).join(' · ')+(m.name?' — '+m.name:'');
   $('mpwIn').value='';$('mpwErr').hidden=true;$('mpwYes').disabled=false;showDlg($('mpwDlg'));setTimeout(function(){$('mpwIn').focus()},50);
 }
-$('mpwNo').addEventListener('click',function(){hideDlg($('mpwDlg'));mpwFor=null});
+$('mpwNo').addEventListener('click',function(){var m=mpwFor;hideDlg($('mpwDlg'));mpwFor=null;
+  if(m&&m.changed){if(curId)delete mtok[curId];saveAuth();location.hash='';toast('ออกจากภารกิจแล้ว สิ่งที่กรอกไว้แต่ยังไม่ได้ SAVE ยังอยู่ในเครื่องนี้')}});
+$('mpwDlg').addEventListener('cancel',function(e){if(mpwFor&&mpwFor.changed)e.preventDefault()});
+/* 14. the mission password was changed while this mission is open: ask for the new one here, drafts stay */
+function mpwChanged(){
+  if(!curId||($('mpwDlg').open&&mpwFor&&mpwFor.changed))return;
+  if($('mpwDlg').open)hideDlg($('mpwDlg'));
+  mpwFor={id:curId,changed:true};
+  $('mpwTitle').textContent='รหัสภารกิจถูกเปลี่ยน';
+  $('mpwSub').textContent='รหัสภารกิจถูกเปลี่ยน โปรดติดต่อ ADMIN เพื่อขอรหัสภารกิจใหม่ แล้วกรอกด้านล่างเพื่อใช้งานต่อ · สิ่งที่กรอกไว้แต่ยังไม่ได้ SAVE ยังอยู่';
+  $('mpwNo').textContent='ออกจากภารกิจ';$('mpwYes').textContent='ใช้งานต่อ';
+  $('mpwIn').value='';$('mpwErr').hidden=true;$('mpwYes').disabled=false;showDlg($('mpwDlg'));setTimeout(function(){$('mpwIn').focus()},50);
+}
 $('mpwIn').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('mpwYes').click()}});
 $('mpwYes').addEventListener('click',function(){
   var m=mpwFor,pw=$('mpwIn').value;if(!m)return;if(!pw){$('mpwIn').focus();return}
@@ -309,7 +353,9 @@ $('mpwYes').addEventListener('click',function(){
   api({action:'open',id:m.id,mpw:pw,vt:vtok||undefined}).then(function(res){
     if(authFail(res)){hideDlg($('mpwDlg'));return}
     if(!res||!res.ok){$('mpwErr').textContent=(res&&res.message)||'เข้าภารกิจไม่สำเร็จ';$('mpwErr').hidden=false;$('mpwYes').disabled=false;$('mpwIn').value='';$('mpwIn').focus();return}
-    mtok[m.id]=res.mt;hideDlg($('mpwDlg'));mpwFor=null;location.hash='m='+encodeURIComponent(m.id);
+    mtok[m.id]=res.mt;saveAuth();hideDlg($('mpwDlg'));mpwFor=null;
+    if(m.changed){toast('ใส่รหัสภารกิจใหม่แล้ว ใช้งานต่อได้');load();return}
+    location.hash='m='+encodeURIComponent(m.id);
   },function(){$('mpwErr').textContent='ติดต่อระบบไม่ได้ ลองอีกครั้ง';$('mpwErr').hidden=false;$('mpwYes').disabled=false});
 });
 
@@ -336,6 +382,8 @@ $('crYes').addEventListener('click',function(){
   $('crYes').disabled=true;$('crErr').hidden=true;
   c.submit(data).then(function(res){
     if(authFail(res)){hideDlg($('credDlg'));return}
+    if(res&&res.error==='takeover_wait'&&c.wait){
+      waitTakeover(res,c.wait,function(r){hideDlg($('credDlg'));crCfg=null;c.done(r)},function(msg){err(msg);$('crYes').disabled=false;$('crPw').value=''});return}
     if(!res||!res.ok){err((res&&res.message)||'ไม่สำเร็จ');$('crYes').disabled=false;$('crPw').value='';return}
     hideDlg($('credDlg'));crCfg=null;c.done(res);
   },function(){err('ติดต่อระบบไม่ได้ ลองอีกครั้ง');$('crYes').disabled=false});
@@ -377,7 +425,7 @@ $('nYes').addEventListener('click',function(){
   api({action:'create',rid:newRid,by:$('nBy').value.trim(),info:info,mpw:$('nPw').value,cred:cred}).then(function(res){
     if(authFail(res)){hideDlg($('newDlg'));return}
     if(!res||!res.ok){err((res&&res.message)||'เปิดภารกิจไม่สำเร็จ');$('nYes').disabled=false;$('nPass').value='';return}
-    mtok[res.id]=res.mt;hideDlg($('newDlg'));toast('เปิดภารกิจใหม่แล้ว');location.hash='m='+res.id;
+    mtok[res.id]=res.mt;saveAuth();hideDlg($('newDlg'));toast('เปิดภารกิจใหม่แล้ว');location.hash='m='+res.id;
   },function(){err('ติดต่อระบบไม่ได้ ลองอีกครั้ง');$('nYes').disabled=false});
 });
 function normRoute(v){return String(v||'').toUpperCase().trim().replace(/\s*[-–—\/>]+\s*/g,'-').replace(/\s+/g,'-')}
@@ -386,13 +434,14 @@ function normRoute(v){return String(v||'').toUpperCase().trim().replace(/\s*[-�
    Seat plan page
    ===================================================================== */
 function showPlan(id){
-  if(curId!==id){curId=id;M=null;datePartial=false;D=loadDraft(id);$('zones').textContent='';$('sync').textContent='กำลังโหลดข้อมูล…';$('whoP').value='';setView('pax',true)}
+  if(curId!==id){curId=id;M=null;datePartial=false;D=loadDraft(id);$('zones').textContent='';$('sync').textContent='กำลังโหลดข้อมูล…';$('whoP').value='';$('saveBar').hidden=true;setView('pax',true);
+    if(atok&&admMission!==id)dropAdmin()}
   $('pageMissions').hidden=true;$('pagePlan').hidden=false;
   return load();
 }
 function leavePlan(){
-  if(atok&&curId){api({action:'admin.logout',id:curId,at:atok,why:'ออกจากหน้าภารกิจ'}).catch(function(){})}
-  dropAdmin();if(curId)delete mtok[curId];curId=null;M=null;D=null;view='pax';
+  if(atok&&curId&&sess){api({action:'admin.logout',id:curId,at:atok,vt:vtok||undefined,why:'ออกจากหน้าภารกิจ'}).catch(function(){})}
+  dropAdmin();if(curId)delete mtok[curId];curId=null;M=null;D=null;view='pax';$('saveBar').hidden=true;saveAuth();
 }
 var loading=false,saving=false;
 function load(){
@@ -403,15 +452,17 @@ function load(){
     if(res&&res.error==='no_mission'){toast('ไม่พบภารกิจนี้ (แท็บอาจถูกลบ)',true);location.hash='';return}
     if(!res||!res.ok)throw new Error(res&&res.message||'load');
     var prev=M&&M.lastSave;
-    M={id:res.id,tab:res.tab,mstatus:res.mstatus,closeInfo:res.closeInfo,info:res.info||{},crew:res.crew||{},pax:{},crewPax:res.crewPax?{}:null,
+    M={id:res.id,tab:res.tab,mstatus:res.mstatus,closeInfo:res.closeInfo,info:res.info||{},crew:res.crew||{},pax:{},crewPax:res.crewPax?{}:null,meta:{},
        status:res.status||{},statusError:res.statusError||'',history:res.history||[],lastSave:res.lastSave};
-    Object.keys(res.pax||{}).forEach(function(k){if(SEAT[k])M.pax[k]=norm(res.pax[k])});
-    if(res.crewPax)Object.keys(res.crewPax).forEach(function(k){if(SEAT[k])M.crewPax[k]=norm(res.crewPax[k])});
-    if(atok&&!res.admin){dropAdmin();if(view==='admin')setView('pax')}
+    Object.keys(res.pax||{}).forEach(function(k){if(SEAT[k]){M.pax[k]=norm(res.pax[k]);M.meta[k]={by:res.pax[k].by||'',at:res.pax[k].at||''}}});
+    if(res.crewPax)Object.keys(res.crewPax).forEach(function(k){if(SEAT[k]){M.crewPax[k]=norm(res.crewPax[k]);M.meta[k]={by:res.crewPax[k].by||'',at:res.crewPax[k].at||''}}});
+    if(atok&&!res.admin){var why=res.adminWhy,was=view==='admin';dropAdmin();if(was)setView('pax');if(why&&(was||!restoreView))ask('ออกจากหน้า ADMIN',why,'',null)}
+    if(restoreView){restoreView=false;if(atok&&res.admin)setView('admin',true)}
+    $('saveBar').hidden=true;
     if(prev&&M.lastSave&&prev.at!==M.lastSave.at&&!justSaved&&pending().n)toast('มีการ SAVE จาก '+(M.lastSave.by||'เครื่องอื่น')+' เมื่อ '+fmtTH(M.lastSave.at)+' ผังแสดงข้อมูลล่าสุดแล้ว');
     justSaved=false;
     cleanDraft();persistDraft();renderAll();
-    $('sync').textContent='ข้อมูลจาก Google Sheet แท็บ “'+M.tab+'” · สภาพที่นั่ง/จอจากไฟล์ Seat Plan 340 (For Admin) · อัปเดตอัตโนมัติทุก 30 วินาที · ล่าสุด '+fmtTH(new Date().toISOString());
+    $('sync').textContent='ข้อมูลจาก Google Sheet แท็บ “'+M.tab+'” · สภาพที่นั่ง/จอจากไฟล์ Seat Plan 340 (For Admin) · ตรวจการบันทึกจากเครื่องอื่นทุก 10 วินาที · โหลดล่าสุด '+fmtTH(new Date().toISOString());
   }).catch(function(){$('sync').textContent='ดึงข้อมูลจาก Google Sheet ไม่ได้ จะลองใหม่อัตโนมัติ'})
   .then(function(){loading=false});
 }
@@ -422,9 +473,10 @@ function setView(v,quiet){
   $('paxTools').hidden=adm;$('admTools').hidden=!adm;$('whoBox').hidden=adm;$('infoCard').hidden=adm;$('crewCard').hidden=!adm;
   $('bAdmin').textContent=adm?'กลับหน้าผู้โดยสาร':'ADMIN';
   $('admTag').textContent='ADMIN · '+admUser;
+  saveAuth();
   if(!quiet)renderAll();
 }
-function dropAdmin(){atok='';admUser='';if(M)M.crewPax=null}
+function dropAdmin(){atok='';admUser='';admMission='';if(M)M.crewPax=null;saveAuth()}
 function renderAll(){if(!M)return;renderTitle();renderInfo();renderPlan();renderManifest();renderHistory();renderAdmin();renderTools();renderNotice()}
 function renderNotice(){var n=$('notice'),msgs=[];
   if(closed())msgs.push('ภารกิจนี้ปิดแล้ว ('+(M.closeInfo||'')+') ดูได้อย่างเดียว ถ้าต้องการแก้ไขให้เปิดภารกิจอีกครั้งจากหน้ารายการภารกิจ');
@@ -493,8 +545,12 @@ function buildZones(host,report,mode){
   ZONES.forEach(function(z){
     var sec=el('section','zone zone-'+z.key),h=el('header'),v=stats[z.key];
     h.appendChild(el('h2',null,z.title));
-    var bd=el('span','badge'+(v.free?'':' zero'));bd.append('ที่นั่งว่าง ');bd.appendChild(el('b',null,String(v.free)));
-    bd.title='ที่นั่งว่างสำหรับผู้โดยสาร '+v.free+' ที่นั่ง (ไม่นับที่นั่งที่มีชื่อแล้ว ที่นั่งใช้ไม่ได้ และ CREW ZONE)';h.appendChild(bd);sec.appendChild(h);
+    var cm=mode==='crew',nfree=cm?v.crewFree:v.free,bd=el('span','badge'+(nfree?'':' zero'));
+    if(cm&&!v.crew)bd.append('ไม่มี CREW ZONE');
+    else{bd.append(cm?'ที่นั่งลูกเรือว่าง ':'ที่นั่งว่าง ');bd.appendChild(el('b',null,String(nfree)));if(!cm&&v.freeBad)bd.append(' · ใช้ไม่ได้ '+v.freeBad)}
+    bd.title=cm?'ที่นั่งใน CREW ZONE ที่ยังไม่มีชื่อลูกเรือ '+v.crewFree+' จาก '+v.crew+' ที่นั่ง':
+      'ที่นั่งว่างสำหรับผู้โดยสาร '+v.free+' ที่นั่ง (หัก CREW ZONE และที่นั่งที่มีชื่อแล้ว) รวมที่นั่งใช้ไม่ได้ '+v.freeBad+' ที่นั่ง ซึ่งใส่ชื่อได้เมื่อที่นั่งไม่พอ';
+    h.appendChild(bd);sec.appendChild(h);
     var box=el('div','rows'),cbox=null;
     function put(row,key){
       if(crew[key]){if(!cbox){cbox=el('div','crewbox');cbox.appendChild(el('div','crewlbl','CREW ZONE'));box.appendChild(cbox)}cbox.appendChild(row)}
@@ -566,6 +622,11 @@ function renderTools(){
   if(!saving){sb.textContent=n?'SAVE ('+n+')':'SAVE';sb.disabled=!n||ro}
   $('bClear').disabled=ro;$('aClear').disabled=ro;
   var ls=M&&M.lastSave;$('lastSave').textContent=ls&&ls.at?('SAVE ล่าสุด: '+[ls.by,fmtTH(ls.at)].filter(Boolean).join(' · ')):'ยังไม่เคย SAVE';
+  var st=zoneStats().sum,sm=$('seatSum'),n;
+  if(view==='admin'){n=st.crewFree;sm.textContent=st.crew?'ที่นั่งลูกเรือคงเหลือ '+n+' จาก '+st.crew+' ที่นั่ง':'ยังไม่ได้กั้น CREW ZONE';sm.title='ที่นั่งใน CREW ZONE ที่ยังไม่มีชื่อลูกเรือ'}
+  else{n=st.free;sm.textContent='ที่นั่งคงเหลือ '+n+' จาก '+(st.t-st.crew)+' ที่นั่ง'+(st.freeBad?' (รวมที่นั่งใช้ไม่ได้ '+st.freeBad+')':'');
+    sm.title='หัก CREW ZONE ('+st.crew+' ที่นั่ง) และที่นั่งที่มีชื่อผู้โดยสารแล้ว ('+st.occ+' ที่นั่ง) · ที่นั่งใช้ไม่ได้ใส่ชื่อได้เมื่อที่นั่งไม่พอ'}
+  sm.classList.toggle('zero',!n);
 }
 
 /* ----- seat dialog (passenger, or crew on the ADMIN page) ----- */
@@ -578,12 +639,12 @@ function openSeat(id){
   cur=id;curMode=mode;dupOk=false;
   var p=(mode==='crew'?getCrewPax(id):getPax(id))||EMPTY,st=status(id),z=zoneOf(SEAT[id].zone);
   $('dTitle').textContent=(id==='CC'?'Mission Commander':'ที่นั่ง '+id)+' · '+z.title+(mode==='crew'?' · ลูกเรือ':'');
-  var sv=mode==='crew'?(M.crewPax&&M.crewPax[id]):M.pax[id],pend=mode==='crew'?crewPending(id):paxPending(id);
+  var sv=(mode==='crew'?(M.crewPax&&M.crewPax[id]):M.pax[id])&&M.meta[id],pend=mode==='crew'?crewPending(id):paxPending(id);
   $('dSub').textContent=(pend?'มีการแก้ไขที่ยังไม่ SAVE · ':'')+(sv&&sv.at?'บันทึกล่าสุด '+[sv.by,sv.at].filter(Boolean).join(' · '):'ยังไม่มีการบันทึกที่นั่งนี้');
   var canEdit,msg=[],bad=false;
   if(mode==='crew'){canEdit=crew&&!closed();if(!crew){msg.push('ที่นั่งนี้ไม่อยู่ใน CREW ZONE ข้อมูลลูกเรือกรอกได้เฉพาะที่นั่งใน CREW ZONE');bad=true}}
-  else{canEdit=!crew&&st.s!==2&&!closed();if(crew){msg.push('ที่นั่งนี้อยู่ใน CREW ZONE กันไว้ให้ลูกเรือ ผู้โดยสารกรอกไม่ได้');bad=true}}
-  if(st.s===2){msg.push('ที่นั่งนี้ใช้งานไม่ได้'+(st.note?' : '+st.note:'')+(mode==='pax'?' กรอกผู้โดยสารไม่ได้':''));bad=true}
+  else{canEdit=!crew&&!closed();if(crew){msg.push('ที่นั่งนี้อยู่ใน CREW ZONE กันไว้ให้ลูกเรือ ผู้โดยสารกรอกไม่ได้');bad=true}}
+  if(st.s===2){msg.push('ที่นั่งนี้ใช้งานไม่ได้'+(st.note?' : '+st.note:'')+(canEdit?' · ใส่ชื่อได้ในกรณีที่นั่งไม่พอ':''));bad=true}
   else if(st.s===1)msg.push('ที่นั่งนี้มีข้อขัดข้องแต่ยังใช้ได้'+(st.note?' : '+st.note:''));
   if(SEAT[id].mon&&st.m)msg.push('จอ Monitor '+(st.m===2?'เสีย':'เสื่อมสภาพ')+(status(id).note&&!st.s?' : '+st.note:''));
   if(closed())msg.push('ภารกิจปิดแล้ว ดูได้อย่างเดียว');
@@ -637,63 +698,127 @@ $('aClear').addEventListener('click',function(){
 });
 
 /* ----- SAVE ----- */
-function staleDialog(ls){
-  $('stMsg').textContent='มีผู้ SAVE ข้อมูลภารกิจนี้ไปก่อน'+(ls&&ls.at?' ('+[ls.by,fmtTH(ls.at)].filter(Boolean).join(' · ')+')':'')+' ระบบยังไม่ได้บันทึกของคุณ กด “โหลดข้อมูลล่าสุด” ตรวจสอบผังอีกครั้ง แล้วกด SAVE ใหม่ รายการที่คุณแก้ไขไว้ยังอยู่';
-  showDlg($('stale'));
+/* ---- 16. saving at the same time ----
+   Every draft remembers the value it was made from (base). If the sheet now holds something else for that seat / field,
+   someone else saved it first: the user picks, item by item, whose value stays (16.4). Nothing is overwritten unseen. */
+function seatLabel(id){return id==='CC'?'Mission Commander (CC)':'ที่นั่ง '+id}
+function pText(p){p=p&&!isEmpty(p)?norm(p):null;return p?[thFull(p),enFull(p)].filter(Boolean).join(' / '):'(ว่าง)'}
+function lsWho(){var ls=M&&M.lastSave;return ls&&ls.at?[ls.by,fmtTH(ls.at)].filter(Boolean).join(' · '):''}
+function metaWho(id){var m=M&&M.meta&&M.meta[id];return m&&(m.by||m.at)?[m.by,fmtSheet(m.at)].filter(Boolean).join(' · '):lsWho()}
+function crewTxt(c){var f=crewFront(c.front),t=!f?'หัว: ไม่กั้น':!f.end?'หัว: ห้อง Mission Commander':'หัว: '+(f.cc?'Mission Commander ':'แถว 1 ')+'ถึงแถว '+ROWS[f.end];
+  return t+' · ท้าย: '+(c.rear?'ถึงแถว '+c.rear:'ไม่กั้น')}
+function findConflicts(mode){
+  var out=[];if(!D||!M)return out;
+  if(mode==='admin'){
+    if(D.crew&&D.crewBase){var sc=savedCrew();if(D.crewBase.front!==sc.front||D.crewBase.rear!==sc.rear)out.push({kind:'crew',id:'crew',label:'CREW ZONE',mine:crewTxt(D.crew),theirs:crewTxt(sc),who:lsWho()})}
+    Object.keys(D.crewPax).forEach(function(id){var sv=M.crewPax&&M.crewPax[id];if(!same(D.crewPax[id].base,sv))out.push({kind:'crewPax',id:id,label:seatLabel(id),mine:pText(D.crewPax[id].val),theirs:pText(sv),who:metaWho(id)})});
+  }else{
+    INFO_KEYS.forEach(function(k){if(!(k in D.info))return;var base=D.infoBase[k]==null?savedInfo(k):D.infoBase[k];
+      if(base!==savedInfo(k))out.push({kind:'info',id:k,label:'ข้อมูลภารกิจ: '+INFO_LABEL[k],mine:D.info[k]||'(ว่าง)',theirs:savedInfo(k)||'(ว่าง)',who:lsWho()})});
+    SEATS.forEach(function(id){if(!D.pax[id])return;var sv=M.pax[id];if(!same(D.pax[id].base,sv))out.push({kind:'pax',id:id,label:seatLabel(id),mine:pText(D.pax[id].val),theirs:pText(sv),who:metaWho(id)})});
+  }
+  return out;
 }
-$('stNo').addEventListener('click',function(){hideDlg($('stale'))});
-$('stLoad').addEventListener('click',function(){hideDlg($('stale'));load().then(function(){
-  var changed=[];
-  ['pax','crewPax'].forEach(function(bag){var sv=bag==='pax'?M.pax:(M.crewPax||{});Object.keys(D[bag]).forEach(function(id){if(!same(D[bag][id].base,sv[id])){changed.push(id);D[bag][id].base=norm(sv[id])}})});
-  INFO_KEYS.forEach(function(k){if(k in D.info&&D.infoBase[k]!==savedInfo(k)){changed.push(INFO_LABEL[k]);D.infoBase[k]=savedInfo(k)}});
-  persistDraft();renderAll();
-  if(changed.length)ask('ข้อมูลที่ถูกแก้จากเครื่องอื่น',changed.join(', ')+' ถูกแก้ไขจากเครื่องอื่นด้วย ตรวจสอบรายการเหล่านี้ ถ้ากด SAVE จะบันทึกค่าของคุณทับ','',null);
-  else toast('โหลดข้อมูลล่าสุดแล้ว ตรวจสอบแล้วกด SAVE ได้');
-})});
+var cfList=[],cfMode='pax',cfPick={};
+function openConflicts(list,mode){
+  cfList=list;cfMode=mode;cfPick={};
+  var t=$('cfTable');t.innerHTML='<thead><tr><th>รายการ</th><th>ของคุณ</th><th>ในระบบ (ผู้บันทึก · เวลา)</th><th>เลือก</th></tr></thead>';
+  var tb=el('tbody');
+  list.forEach(function(c,i){var tr=el('tr','need');tr.dataset.i=i;
+    tr.appendChild(el('td',null,c.label));tr.appendChild(el('td',null,c.mine));
+    var w=el('td','cfwho');w.appendChild(document.createTextNode(c.theirs));if(c.who)w.appendChild(el('small',null,c.who));tr.appendChild(w);
+    var ch=el('td');[['mine','ใช้ของคุณ'],['theirs','ใช้ในระบบ']].forEach(function(o){var l=el('label'),r=el('input');r.type='radio';r.name='cf'+i;r.value=o[0];
+      r.addEventListener('change',function(){cfPick[i]=o[0];tr.classList.remove('need');$('cfYes').disabled=Object.keys(cfPick).length<cfList.length});
+      l.appendChild(r);l.appendChild(document.createTextNode(o[1]));ch.appendChild(l)});
+    tr.appendChild(ch);tb.appendChild(tr)});
+  t.appendChild(tb);$('cfYes').disabled=true;showDlg($('cfDlg'));
+}
+$('cfNo').addEventListener('click',function(){hideDlg($('cfDlg'));toast('ยังไม่ได้บันทึก สิ่งที่กรอกไว้ยังอยู่ กด SAVE ใหม่เมื่อพร้อม')});
+$('cfYes').addEventListener('click',function(){
+  if(Object.keys(cfPick).length<cfList.length||!D||!M)return;
+  cfList.forEach(function(c,i){var mine=cfPick[i]==='mine';
+    if(c.kind==='pax'){if(mine)D.pax[c.id].base=norm(M.pax[c.id]);else delete D.pax[c.id]}
+    else if(c.kind==='crewPax'){if(mine)D.crewPax[c.id].base=norm(M.crewPax&&M.crewPax[c.id]);else delete D.crewPax[c.id]}
+    else if(c.kind==='info'){if(mine)D.infoBase[c.id]=savedInfo(c.id);else{delete D.info[c.id];delete D.infoBase[c.id]}}
+    else if(c.kind==='crew'){if(mine)D.crewBase=savedCrew();else{D.crew=null;D.crewBase=null}}});
+  hideDlg($('cfDlg'));cleanDraft();persistDraft();renderAll();
+  var mode=cfMode;if(!pending(mode==='admin'?'admin':'pax').n){toast('ใช้ข้อมูลในระบบทั้งหมด ไม่มีรายการต้อง SAVE');return}
+  (mode==='admin'?doAdminSave():doSave());
+});
+/* 16.2 someone else saved while this device still has drafts: yellow bar (no drafts: the plan just reloads) */
+var lastSelfSave='';
+function seenSave(ls){
+  if(!ls||!ls.at||!M||saving||loading)return;
+  var cur=M.lastSave&&M.lastSave.at||'';if(ls.at===cur||ls.at===lastSelfSave)return;
+  var t=(ls.by||'เครื่องอื่น')+' เมื่อ '+hm(new Date(ls.at).getTime())+' น.';
+  if(!pending('pax').n&&!pending('admin').n){load().then(function(){toast('มีการบันทึกจาก '+t+' ผังแสดงข้อมูลล่าสุดแล้ว')});return}
+  $('sbMsg').textContent='🔔 มีการบันทึกจาก '+t;$('saveBar').hidden=false;
+}
+$('sbLoad').addEventListener('click',function(){$('saveBar').hidden=true;load().then(function(){
+  var mode=view==='admin'?'admin':'pax',c=findConflicts(mode);
+  if(c.length)openConflicts(c,mode);else toast('โหลดข้อมูลล่าสุดแล้ว ไม่มีรายการที่ชนกัน กรอกต่อได้')})});
+/* res: true = saved · false = not saved · 'retry' = someone saved first, load the latest and try again */
+var reCheck=null;
 function afterSaveRes(res,sent,pd,mode){
   if(authFail(res))return false;
-  if(res&&res.error==='stale'){staleDialog(res.lastSave);return false}
+  if(res&&res.error==='stale'){toast('มีผู้ SAVE ไปก่อน กำลังโหลดข้อมูลล่าสุดแล้วบันทึกต่อ…');return 'retry'}
   if(!res||!res.ok){toast('SAVE ไม่สำเร็จ'+(res&&res.message?' ('+res.message+')':'')+' ลองกด SAVE อีกครั้ง',true);return false}
+  if(res.lastSave&&res.lastSave.at)lastSelfSave=res.lastSave.at;
   if(mode==='admin'){
-    if(pd.crew&&D.crew&&sent.crew&&D.crew.front===sent.crew.front&&D.crew.rear===sent.crew.rear)D.crew=null;
+    if(pd.crew&&D.crew&&sent.crew&&D.crew.front===sent.crew.front&&D.crew.rear===sent.crew.rear){D.crew=null;D.crewBase=null}
     pd.crewPax.forEach(function(id){if(D.crewPax[id]&&same(D.crewPax[id].val,sent.crewPax[id].val))delete D.crewPax[id]});
   }else{
     pd.info.forEach(function(k){if(D.info[k]===sent.info[k]){delete D.info[k];delete D.infoBase[k]}});
     pd.pax.forEach(function(id){if(D.pax[id]&&same(D.pax[id].val,sent.pax[id].val))delete D.pax[id]});
   }
-  var conf=res.conflicts||[];
-  conf.forEach(function(c){if(mode==='admin')delete D.crewPax[c.id];else{delete D.pax[c.id];delete D.info[c.id];delete D.infoBase[c.id]}});
+  // ที่นั่งใน CREW ZONE (ผู้โดยสาร) / นอก CREW ZONE (ลูกเรือ) บันทึกไม่ได้: ตัดออก · รายการที่มีคนแก้ไปก่อน: ให้เลือกหลังโหลดล่าสุด
+  var conf=res.conflicts||[],drop=conf.filter(function(c){return mode==='admin'?c.kind==='notcrew':c.kind==='crew'});
+  drop.forEach(function(c){if(mode==='admin')delete D.crewPax[c.id];else delete D.pax[c.id]});
+  if(conf.length>drop.length)reCheck=mode;
   persistDraft();justSaved=true;
-  if(conf.length){var ids=conf.map(function(c){return INFO_LABEL[c.id]||c.id});
-    ask('บางรายการไม่ได้บันทึก',ids.join(', ')+' ถูกแก้ไขจากเครื่องอื่นก่อน หรืออยู่ใน CREW ZONE ระบบจึงไม่บันทึกทับ และแสดงข้อมูลล่าสุดแทน ตรวจสอบแล้วแก้ไขใหม่ได้','',null)}
+  if(drop.length)ask('บางรายการไม่ได้บันทึก',drop.map(function(c){return c.id}).join(', ')+(mode==='admin'?' ไม่อยู่ใน CREW ZONE':' อยู่ใน CREW ZONE')+' ระบบจึงไม่บันทึก และแสดงข้อมูลล่าสุดแทน','',null);
   else toast('SAVE ลง Google Sheet เรียบร้อย '+(res.saved||0)+' รายการ');
   return true;
 }
-function doSave(){
+function afterSave(ok,mode,retry,again){
+  saving=false;renderTools();
+  if(ok===true)return load().then(function(){
+    if(reCheck===mode){reCheck=null;var c=findConflicts(mode);if(c.length)openConflicts(c,mode)}return true});
+  if(ok==='retry')return load().then(function(){
+    var c=findConflicts(mode);if(c.length){openConflicts(c,mode);return false}
+    if(retry>=2){toast('มีการบันทึกจากเครื่องอื่นต่อเนื่อง ลองกด SAVE อีกครั้ง',true);return false}
+    return again(retry+1)});
+  return ok;
+}
+function doSave(retry){
+  retry=retry||0;
   if(saving||!M||closed())return Promise.resolve(false);
   var pd=pending('pax');if(!pd.n){toast('ไม่มีรายการที่ต้อง SAVE');return Promise.resolve(true)}
   var by=$('whoP').value.trim();
   if(!by){toast('กรุณากรอกชื่อผู้บันทึกก่อน SAVE',true);$('whoP').focus();$('whoP').classList.add('need');return Promise.resolve(false)}
+  var cf=findConflicts('pax');if(cf.length){openConflicts(cf,'pax');return Promise.resolve(false)}
   var body={action:'save',id:curId,mt:mtok[curId],by:by,rev:M.lastSave&&M.lastSave.at||'',info:{},pax:[]};
   pd.info.forEach(function(k){body.info[k]={base:D.infoBase[k]||'',val:D.info[k]}});
   pd.pax.forEach(function(id){body.pax.push({id:id,base:D.pax[id].base,val:D.pax[id].val})});
   saving=true;$('bSave').disabled=true;$('bSave').textContent='กำลัง SAVE…';
   var sent=JSON.parse(JSON.stringify(D));
   return api(body).then(function(res){return afterSaveRes(res,sent,pd,'pax')},function(){toast('ติดต่อ Google Sheet ไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วกด SAVE อีกครั้ง',true);return false})
-  .then(function(ok){saving=false;renderTools();if(ok)return load().then(function(){return ok});return ok});
+  .then(function(ok){return afterSave(ok,'pax',retry,doSave)});
 }
 $('bSave').addEventListener('click',function(){doSave()});
 $('whoP').addEventListener('input',function(){$('whoP').classList.remove('need')});
-function doAdminSave(){
+function doAdminSave(retry){
+  retry=retry||0;
   if(saving||!M||closed()||!atok)return Promise.resolve(false);
   var pd=pending('admin');if(!pd.n){toast('ไม่มีรายการที่ต้อง SAVE');return Promise.resolve(true)}
+  var cf=findConflicts('admin');if(cf.length){openConflicts(cf,'admin');return Promise.resolve(false)}
   var body={action:'admin.save',id:curId,mt:mtok[curId],at:atok,rev:M.lastSave&&M.lastSave.at||'',crewPax:[]};
   if(pd.crew)body.crew=D.crew;
   pd.crewPax.forEach(function(id){body.crewPax.push({id:id,base:D.crewPax[id].base,val:D.crewPax[id].val})});
   saving=true;$('aSave').disabled=true;$('aSave').textContent='กำลัง SAVE…';
   var sent=JSON.parse(JSON.stringify(D));
   return api(body).then(function(res){return afterSaveRes(res,sent,pd,'admin')},function(){toast('ติดต่อ Google Sheet ไม่ได้ ลองกด SAVE อีกครั้ง',true);return false})
-  .then(function(ok){saving=false;renderTools();if(ok)return load().then(function(){return ok});return ok});
+  .then(function(ok){return afterSave(ok,'admin',retry,doAdminSave)});
 }
 $('aSave').addEventListener('click',function(){doAdminSave()});
 
@@ -784,8 +909,8 @@ function excelModel(mode,blank){
   var seatObj=function(id,label,mon){var st=status(id),crew=!!set[SEAT[id].row];
     var p=crew?(crewMode?getCrewPax(id):null):getPax(id);
     return {label:label,s:st.s,mon:mon?st.m:null,crew:crew,name:p?shortName(p):''}};
-  var zones=ZONES.map(function(z){var v=stats[z.key],free=blank?(v.t-v.crew-v.bad):v.free;
-    return {title:z.title,free:free,items:z.items.map(function(it){
+  var zones=ZONES.map(function(z){var v=stats[z.key],free=crewMode?(blank?v.crew:v.crewFree):(blank?v.t-v.crew:v.free);
+    return {title:z.title,free:free,freeLabel:crewMode?(v.crew?'ที่นั่งลูกเรือว่าง ':'ไม่มี CREW ZONE'):'ที่นั่งว่าง ',noCount:crewMode&&!v.crew,items:z.items.map(function(it){
       if(it.cc)return {type:'cc',crew:!!set.CC,seat:seatObj('CC','CC',true)};
       if(it.ovh)return {type:'ovh',crew:!!set[it.ovh],mon:['L','C','R'].map(function(p){return status('MON-'+it.ovh+'-'+p).m})};
       return {type:'row',n:String(it.n),crew:!!set[String(it.n)],groups:it.g.map(function(g){return g.split('').map(function(L){return L==='_'?null:seatObj(it.n+L,L,it.mon)})})};
@@ -844,9 +969,9 @@ $('bAdmin').addEventListener('click',function(){
   if(!M)return;
   if(view==='admin'){setView('pax');window.scrollTo(0,0);return}
   if(atok&&M.crewPax){setView('admin');window.scrollTo(0,0);return}
-  credDialog({title:'เข้าหน้า ADMIN',sub:'Login ด้วยข้อมูลใน LOGIN DATABASE',yes:'Login',
+  credDialog({title:'เข้าหน้า ADMIN',sub:'Login ด้วยข้อมูลใน LOGIN DATABASE',yes:'Login',wait:{mt:mtok[curId]},
     submit:function(d){return api({action:'admin.login',id:curId,mt:mtok[curId],cred:d.cred})},
-    done:function(res){atok=res.at;admUser=res.user||'';toast('เข้าหน้า ADMIN แล้ว ใช้ได้ '+(res.hours||2)+' ชั่วโมง');
+    done:function(res){atok=res.at;admUser=res.user||'';admMission=curId;saveAuth();toast('เข้าหน้า ADMIN แล้ว ใช้ได้ถึง '+hm(clockX)+' น.');
       load().then(function(){if(atok){setView('admin');window.scrollTo(0,0)}})}});
 });
 $('aLogout').addEventListener('click',function(){
@@ -854,14 +979,14 @@ $('aLogout').addEventListener('click',function(){
   adminLogout();
 });
 function adminLogout(){var t=atok;dropAdmin();setView('pax');window.scrollTo(0,0);toast('ออกจากหน้า ADMIN แล้ว');
-  if(t)api({action:'admin.logout',id:curId,at:t,why:'กด LOGOUT'}).catch(function(){})}
+  if(t)api({action:'admin.logout',id:curId,at:t,vt:vtok||undefined,why:'กด LOGOUT'}).catch(function(){})}
 function changeCrew(){
   if(closed())return;
   var nc={front:$('crewFront').value,rear:$('crewRear').value};
   var ff=crewFront(nc.front),ri=ROWS.indexOf(nc.rear);
   if(ff&&ri>0&&ff.end>=ri){toast('กั้นจากหัวเครื่องและท้ายเครื่องซ้อนกัน เลือกแถวใหม่',true);renderAdmin();return}
   var set=crewRows(nc),hit=SEATS.filter(function(id){return set[SEAT[id].row]&&M.pax[id]&&!isEmpty(M.pax[id])});
-  function apply(){D.crew=nc;cleanDraft();persistDraft();renderAll();toast('ตั้ง CREW ZONE แล้ว กด SAVE เพื่อบันทึก')}
+  function apply(){if(!D.crew)D.crewBase=savedCrew();D.crew=nc;cleanDraft();persistDraft();renderAll();toast('ตั้ง CREW ZONE แล้ว กด SAVE เพื่อบันทึก')}
   if(hit.length)ask('มีผู้โดยสารในแถวที่จะกั้น','ที่นั่ง '+hit.join(', ')+' มีรายชื่อผู้โดยสารอยู่ เมื่อกด SAVE รายชื่อในที่นั่งเหล่านี้จะถูกล้างออก','กั้นที่นั่ง',apply,renderAdmin);
   else apply();
 }
@@ -932,14 +1057,137 @@ $('backLink').addEventListener('click',function(e){e.preventDefault();
 window.addEventListener('hashchange',function(){route(false)});
 window.addEventListener('beforeunload',function(e){if(pending('pax').n||pending('admin').n){e.preventDefault();e.returnValue=''}});
 setInterval(function(){
-  if(document.hidden||saving||!$('gate').hidden||anyDialogOpen()||!sess)return;
-  if(curId&&!$('pagePlan').hidden)load();else if(!$('pageMissions').hidden)loadMissions();
+  if(document.hidden||!$('gate').hidden||anyDialogOpen()||!sess)return;
+  if(!$('pageMissions').hidden)loadMissions();
 },30000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&curId&&sess&&!saving&&$('gate').hidden&&!anyDialogOpen())load()});
 
+/* =====================================================================
+   13. การเข้าใช้งาน: ถามระบบทุก 10 วินาที · ขอเข้าซ้อน · นาฬิกา 90 นาที · ออกจากระบบ
+   ===================================================================== */
+var pingT=null,pingBusy=false;
+function startPing(){if(!pingT)pingT=setInterval(ping,10000);setTimeout(ping,500)}
+function ping(){
+  if(!sess||pingBusy||!$('gate').hidden)return;pingBusy=true;
+  var b={action:'ping',s:sess,at:atok||undefined,vt:vtok||undefined};
+  if(curId&&M&&!$('pagePlan').hidden){b.id=curId;b.mt=mtok[curId]}
+  api(b).then(function(r){
+    if(!r||authFail(r)||!r.ok)return;
+    if(r.x)clockX=r.x;if(r.now)srvOff=r.now-Date.now();
+    if(r.adminGone&&atok){var was=view==='admin';dropAdmin();if(was)setView('pax');ask('ออกจากหน้า ADMIN',r.adminGone,'',null)}
+    if(r.viewGone&&vtok){vtok='';if(mtab!=='open')setTab('open');ask('ดูภารกิจที่เสร็จสิ้น / ภารกิจทั้งหมด',r.viewGone,'',null)}
+    showTkAsk(r.takeover);
+    if(r.mpw&&curId&&M)mpwChanged();
+    else if(curId&&M&&b.id===curId)seenSave(r.lastSave);
+    saveAuth();paintAcct();
+  }).catch(function(){}).then(function(){pingBusy=false});
+}
+/* this window is asked to give way (13.4.2): 10 seconds to say no */
+var tkaInt=null,tkaUntil=0;
+function showTkAsk(t){
+  if(!t){if($('tkAsk').open){hideDlg($('tkAsk'));clearInterval(tkaInt)}return}
+  tkaUntil=Date.now()+t.left;
+  $('tkaMsg').textContent=t.type==='u'?
+    'มีผู้ Login เข้าใช้งานด้วย Username นี้จากเครื่องอื่น บัญชีของคุณจะถูกออกจากระบบอัตโนมัติ… หากไม่ใช่คุณ ให้กด “ไม่อนุญาต” แล้วติดต่อ Admin':
+    'มีผู้เข้าใช้งานด้วยบัญชี Google นี้ ('+email+') จากเครื่องอื่น บัญชีของคุณจะถูกออกจากระบบอัตโนมัติ… หากไม่ใช่คุณ ให้กด “ไม่อนุญาต” แล้วเปลี่ยนรหัสผ่าน Gmail และออกจากระบบ Google ทุกอุปกรณ์';
+  function paint(){var s=Math.ceil((tkaUntil-Date.now())/1000);
+    $('tkaCount').textContent=s>0?'ออกจากระบบใน '+s+' วินาที':'กำลังออกจากระบบ…';
+    if(s<=0){clearInterval(tkaInt);setTimeout(ping,2500)}}
+  clearInterval(tkaInt);paint();tkaInt=setInterval(paint,250);$('tkaNo').disabled=false;
+  if(!$('tkAsk').open)showDlg($('tkAsk'));
+}
+$('tkAsk').addEventListener('cancel',function(e){e.preventDefault()});
+$('tkaNo').addEventListener('click',function(){$('tkaNo').disabled=true;
+  api({action:'takeover.deny',s:sess,at:atok||undefined,vt:vtok||undefined}).then(function(r){
+    if(authFail(r))return;clearInterval(tkaInt);hideDlg($('tkAsk'));
+    toast('ไม่อนุญาตแล้ว ใช้งานต่อได้ ถ้าไม่ใช่คุณที่พยายามเข้าใช้งาน ให้ติดต่อ Admin')},function(){$('tkaNo').disabled=false;toast('ติดต่อระบบไม่ได้ ลองอีกครั้ง',true)})});
+/* this window waits for the other one (13.4.2): ask the server every 2.5 seconds */
+var tkActive=null,tkCount=null;
+function stopTk(){tkActive=null;clearInterval(tkCount);tkCount=null;if($('tkWait').open)hideDlg($('tkWait'))}
+function waitTakeover(res,extra,ok,fail){
+  stopTk();var my={},t0=Date.now(),pt=res.pt;tkActive=my;
+  $('tkwMsg').textContent=(res.wait&&res.wait.type==='u'?'Username นี้':'บัญชี Google นี้')+'กำลังใช้งานอยู่ที่เครื่องอื่น ระบบแจ้งเครื่องเดิมแล้ว ถ้าเครื่องเดิมไม่กด “ไม่อนุญาต” ภายใน 10 วินาที หรือปิดไปแล้ว คุณจะได้เข้าใช้งาน (รอไม่เกินประมาณ 30 วินาที)';
+  function paint(){$('tkwCount').textContent='รอแล้ว '+Math.floor((Date.now()-t0)/1000)+' วินาที'}
+  paint();tkCount=setInterval(paint,500);showDlg($('tkWait'));
+  $('tkwNo').onclick=function(){stopTk();fail('ยกเลิกการเข้าใช้งานแล้ว')};
+  (function poll(){setTimeout(function(){if(tkActive!==my)return;
+    var b={action:'takeover.poll',pt:pt};if(sess)b.s=sess;for(var k in extra)if(extra[k]!==undefined)b[k]=extra[k];
+    rawApi(b).then(function(r){if(tkActive!==my)return;
+      if(r&&r.error==='takeover_wait'){poll();return}
+      stopTk();if(r&&r.ok){ok(r);return}
+      if(r&&(r.error==='session'||r.error==='kicked'||r.error==='blocked_out')){authFail(r);return}
+      fail((r&&r.message)||'เข้าใช้งานไม่สำเร็จ')},function(){if(tkActive===my)poll()})},2500)})();
+}
+$('tkWait').addEventListener('cancel',function(e){e.preventDefault()});
+/* 13.6 one clock: warn 5 minutes before the end, "ใช้งานต่อ" adds 90 minutes */
+var expWarned=0,expDismissed=0;
+function paintAcct(){
+  [].forEach.call(document.querySelectorAll('.acctinfo'),function(x){x.textContent='';
+    if(!sess)return;if(email)x.appendChild(document.createTextNode(email+' · '));
+    x.appendChild(document.createTextNode('ใช้ได้ถึง '));x.appendChild(el('b',null,hm(clockX)+' น.'))});
+}
+function paintExp(){var left=Math.max(0,clockX-srvNow()),m=Math.floor(left/60000),s=Math.floor(left%60000/1000);
+  $('expMsg').textContent='Account ของคุณจะหมดเวลาใช้งานในอีก '+m+':'+p2(s)+' นาที (เวลา '+hm(clockX)+' น.) หากต้องการใช้งานต่อ ให้กดปุ่ม “ต้องการใช้งานต่อ” จะใช้ได้ต่ออีก 90 นาที ถึงเวลา '+hm(clockX+90*60000)+' น.'}
+setInterval(function(){
+  if(!sess||!clockX)return;
+  var left=clockX-srvNow();
+  if(left<=0){forceOut('หมดเวลาใช้งาน ('+hm(clockX)+' น.) ให้เข้าสู่ระบบใหม่ · สิ่งที่กรอกแต่ยังไม่ได้ SAVE ยังอยู่ในเครื่องนี้');return}
+  if(left<=5*60000&&expWarned!==clockX&&expDismissed!==clockX){expWarned=clockX;paintExp();showDlg($('expDlg'))}
+  if($('expDlg').open)paintExp();
+},1000);
+$('expNo').addEventListener('click',function(){expDismissed=clockX;hideDlg($('expDlg'));toast('จะออกจากระบบเมื่อ '+hm(clockX)+' น.')});
+$('expYes').addEventListener('click',function(){$('expYes').disabled=true;
+  api({action:'extend',s:sess,mts:mtok,at:atok||undefined,vt:vtok||undefined}).then(function(r){$('expYes').disabled=false;
+    if(authFail(r))return;if(!r||!r.ok){toast((r&&r.message)||'ต่อเวลาไม่สำเร็จ ลองอีกครั้ง',true);return}
+    sess=r.s;clockX=r.x;if(r.now)srvOff=r.now-Date.now();Object.keys(r.mts||{}).forEach(function(id){mtok[id]=r.mts[id]});
+    if(atok)atok=r.at||'';if(vtok)vtok=r.vt||'';if(!atok)dropAdmin();
+    saveAuth();paintAcct();hideDlg($('expDlg'));toast('ใช้งานต่อได้ถึงเวลา '+hm(clockX)+' น.')},
+  function(){$('expYes').disabled=false;toast('ติดต่อระบบไม่ได้ ลองอีกครั้ง',true)})});
+/* 13.1 ออกจากระบบ: ask first when there are unsaved items */
+function draftKeys(){var out=[];try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf('pax-a340-draft2-')===0)out.push(k)}}catch(e){}return out}
+var loKeys=[];
+function askLogout(){
+  var n=curId&&D?pending('pax').n+pending('admin').n:0;
+  if(n){loKeys=[draftKey(curId)];$('loMsg').textContent='มี '+n+' รายการที่ยังไม่ได้ SAVE ในภารกิจนี้ เลือกว่าจะ SAVE ก่อน หรือทิ้งรายการเหล่านี้ แล้วออกจากระบบ';
+    $('loSave').hidden=closed();showDlg($('loDlg'));return}
+  loKeys=draftKeys();
+  if(loKeys.length){$('loMsg').textContent='มีรายการที่ยังไม่ได้ SAVE ค้างอยู่ในเครื่องนี้ '+loKeys.length+' ภารกิจ ถ้าต้องการ SAVE ให้กด “ยกเลิก” แล้วเข้าภารกิจนั้นเพื่อ SAVE ก่อน';
+    $('loSave').hidden=true;showDlg($('loDlg'));return}
+  logoutNow();
+}
+[].forEach.call(document.querySelectorAll('.logout'),function(b){b.addEventListener('click',askLogout)});
+$('loNo').addEventListener('click',function(){hideDlg($('loDlg'))});
+$('loDrop').addEventListener('click',function(){hideDlg($('loDlg'));loKeys.forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});D=curId?loadDraft(curId):D;logoutNow()});
+$('loSave').addEventListener('click',function(){hideDlg($('loDlg'));
+  var a=pending('pax').n?doSave():Promise.resolve(true);
+  a.then(function(ok){if(!ok)return false;return pending('admin').n?(atok?doAdminSave():(toast('ต้อง Login หน้า ADMIN เพื่อ SAVE รายการลูกเรือ',true),false)):true})
+   .then(function(ok){if(ok&&!pending('pax').n&&!pending('admin').n)logoutNow()})});
+function logoutNow(){
+  if(sess)api({action:'logout',s:sess,at:atok||undefined,vt:vtok||undefined,why:'กด ออกจากระบบ'}).catch(function(){});
+  forceOut('ออกจากระบบแล้ว');$('gateErr').classList.add('info');
+}
+/* closing or reloading this tab: tell the server, so another window does not have to wait (a reload pings again at once) */
+window.addEventListener('pagehide',function(){if(!sess||!API||!navigator.sendBeacon)return;
+  try{navigator.sendBeacon(API,new Blob([JSON.stringify({action:'bye',s:sess,w:wid})],{type:'text/plain;charset=utf-8'}))}catch(e){}});
+/* each tab its own window id; a duplicated tab (copied sessionStorage) must not share it */
+var bc=null;try{bc=new BroadcastChannel('sp-a340-w')}catch(e){bc=null}
+if(bc)bc.addEventListener('message',function(e){var d=e.data||{};if(d.q==='who'&&wid&&d.w===wid)bc.postMessage({a:'me',w:wid})});
+function initWid(){return new Promise(function(done){
+  var w=sstore(WIDK);
+  if(!w||!bc){wid=w||newWid();sstore(WIDK,wid);done();return}
+  var dup=false,h=function(e){var d=e.data||{};if(d.a==='me'&&d.w===w)dup=true};
+  bc.addEventListener('message',h);bc.postMessage({q:'who',w:w});
+  setTimeout(function(){bc.removeEventListener('message',h);
+    if(dup){wid=newWid();sstore(WIDK,wid);sstore(AUTH,null)}else wid=w;done()},300)})}
+setInterval(paintAcct,30000);
+
 function start(){
   if(!API){route();return}
-  rawApi({action:'config'}).then(function(res){clientId=res&&res.googleClientId||'';route(true)},function(){showGate('ติดต่อระบบไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วโหลดหน้าใหม่')});
+  initWid().then(function(){
+    restoreAuth();
+    rawApi({action:'config'}).then(function(res){clientId=res&&res.googleClientId||'';
+      if(sess){route(false);startPing()}else route(true)},function(){showGate('ติดต่อระบบไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วโหลดหน้าใหม่')});
+  });
 }
 start();
 })();

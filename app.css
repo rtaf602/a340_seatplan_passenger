@@ -109,7 +109,7 @@ select option{color:var(--ink);font-weight:500}
 .seat[data-s="1"] .s::before{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--warn);pointer-events:none}
 .seat[data-s="1"] .s::after{content:"!";position:absolute;top:0;right:3px;font-size:11px;color:var(--warn);font-weight:700}
 .seat.occ[data-s="1"] .s::after{color:#ffd65a}
-.seat[data-s="2"] .s{background:var(--bad-soft);border-color:var(--bad);color:var(--bad);cursor:not-allowed}
+.seat[data-s="2"] .s{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
 .seat[data-s="2"] .s::after{content:"×";position:absolute;top:-1px;right:3px;font-size:13px;font-weight:700}
 .seat.occ[data-s="2"] .s{background:var(--bad);color:#fff}
 .seat.crew{cursor:not-allowed}
@@ -313,3 +313,26 @@ dialog.wide[open]{display:flex;flex-direction:column}
 #gsiBtn{display:flex;justify-content:center;min-height:40px}
 .nsec{margin:6px 0 8px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;font-weight:700;color:var(--ink)}
 #newDlg{width:min(560px,calc(100vw - 32px))}
+
+/* ----- บัญชี / ออกจากระบบ (มุมบนขวาทุกหน้า) ----- */
+.acct{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.acctinfo{font-size:12px;color:var(--muted);text-align:right;overflow-wrap:anywhere}
+.acctinfo b{color:var(--ink);font-weight:600}
+.acct .logout{white-space:nowrap}
+/* ----- ที่นั่งคงเหลือ ----- */
+.seatsum{color:var(--ink);font-weight:700;background:var(--ok-soft);border:1px solid var(--ok);border-radius:4px;padding:0 6px}
+.seatsum.zero{background:var(--bad-soft);border-color:var(--bad)}
+/* ----- มีคนอื่น SAVE ระหว่างกรอก ----- */
+.savebar{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:6;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--warn-soft);border:1px solid var(--warn);border-radius:8px;padding:8px 12px;font-size:14px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.savebar span{flex:1;min-width:0}
+/* ----- เลือกค่าเมื่อชนกัน ----- */
+dialog.mid{width:min(720px,calc(100vw - 24px))}
+.cftable{width:100%;border-collapse:collapse;font-size:13px}
+.cftable th,.cftable td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.cftable th{font-size:12px;color:var(--muted);font-weight:600}
+.cftable td.cfwho small{display:block;color:var(--muted)}
+.cftable label{display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer}
+.cftable tr.need td{background:var(--warn-soft)}
+.tkcount{font:600 28px/1.2 var(--mono);text-align:center;margin:6px 0;color:var(--bad)}
+@media (max-width:600px){.acct{width:100%;justify-content:space-between}.cftable{font-size:12px}}
+.err.info{color:var(--ok);font-weight:600}

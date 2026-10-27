@@ -25,10 +25,12 @@ const SETUP = {
 const PROP = { pin: 'ACCESS_PIN', cid: 'GOOGLE_CLIENT_ID', seat: 'ADMIN_SEAT_SHEET_ID', db: 'LOGIN_DB_ID', ulog: 'USER_LOG_ID', alog: 'ADMIN_LOG_ID', secret: 'SECRET' };
 const OPT = {
   tz: 'Asia/Bangkok',
-  sessionHours: 12,        // เข้าหน้ารายการแล้วใช้ได้นานเท่านี้ (ปิด / รีเฟรชหน้าเว็บต้องใส่ใหม่ เพราะหน้าเว็บไม่เก็บไว้)
-  missionHours: 12,        // ใส่รหัสภารกิจแล้วใช้ได้นานเท่านี้ (ออกจากภารกิจแล้วกลับเข้าใหม่ต้องใส่ใหม่)
-  adminHours: 2,           // Login หน้า ADMIN ใช้ได้นานเท่านี้
-  viewHours: 2,            // Login ดูภารกิจที่เสร็จสิ้น / ภารกิจทั้งหมด ใช้ได้นานเท่านี้ (ปิด / รีเฟรชหน้าเว็บต้อง Login ใหม่)
+  // บัตรผ่านทุกใบ (เว็บไซต์ ภารกิจ ADMIN ดูภารกิจที่เสร็จสิ้น) ใช้นาฬิกาเดียวกัน: 90 นาทีนับจากเข้าเว็บไซต์ กด "ใช้งานต่อ" ได้ทีละ 90 นาที
+  // รีเฟรชหน้าเว็บแล้วบัตรผ่านยังอยู่ (เก็บในแท็บนั้น) ปิดแท็บแล้วหาย
+  clockMinutes: 90,
+  // Email และ Username ใช้ได้ทีละ 1 หน้าต่าง: หน้าต่างถามระบบทุก 10 วินาที ไม่ได้ถามเกิน 30 วินาทีถือว่าปิดไปแล้ว
+  // มีคนขอเข้าซ้อน: หน้าต่างเดิมเห็นข้อความแล้วมีเวลากด "ไม่อนุญาต" 10 วินาที
+  hbStaleSec: 30, denySec: 10, reqStaleSec: 12,
   // กติกาเดียวกันทุกรหัส (รหัสเว็บไซต์, รหัสภารกิจ, Login): ผิดติดกัน 5 ครั้ง พัก 60 นาที · ผิดอีก 5 ครั้ง บล็อกจนแอดมินแก้สถานะเป็น ACTIVE
   //   นับต่อ Email ในแท็บ LOCKED EMAILS และต่อ Username ในแท็บ LOCKED USERS (ไฟล์ Admin Page) · งานที่ใช้ทั้งสองอย่างนับทั้งคู่
   maxFails: 5, pauseMinutes: 60,
@@ -42,12 +44,21 @@ const MSG = {
   locked: 'ใส่ข้อมูลผิดหลายครั้ง ให้รอ ' + OPT.pauseMinutes + ' นาทีแล้วลองใหม่',
   blocked: 'บัญชี Google นี้ใส่ข้อมูลผิดหลายครั้งและถูกบล็อก ให้ติดต่อ Admin',
   mpw: 'รหัสภารกิจไม่ถูกต้อง',
-  session: 'หมดเวลาใช้งาน ให้ใส่รหัสผ่านเข้าใช้งานใหม่',
+  session: 'หมดเวลาใช้งาน ให้เข้าสู่ระบบใหม่',
   mission: 'ต้องใส่รหัสภารกิจใหม่',
   admin: 'หมดเวลาของหน้า ADMIN ให้ Login ใหม่',
   google: 'ต้อง Sign in with Google ก่อนเข้าใช้งาน',
   closed: 'ภารกิจนี้ปิดแล้ว ดูได้อย่างเดียว ถ้าต้องการแก้ไขให้เปิดภารกิจอีกครั้ง',
-  busy: 'ระบบกำลังบันทึกจากเครื่องอื่น ลองอีกครั้งใน 2-3 วินาที'
+  busy: 'ระบบกำลังบันทึกจากเครื่องอื่น ลองอีกครั้งใน 2-3 วินาที',
+  blockedOut: 'Account ของคุณถูกบล็อก โปรดติดต่อ Admin เพื่อปลดบล็อก',
+  kickedE: 'มีการเข้าใช้งานด้วยบัญชี Google นี้จากเครื่องอื่น คุณจึงถูกออกจากระบบ ถ้าไม่ใช่คุณ ให้เปลี่ยนรหัสผ่าน Gmail และออกจากระบบ Google ทุกอุปกรณ์ แล้วติดต่อ Admin',
+  kickedU: 'มีการ Login ด้วย Username นี้จากเครื่องอื่น คุณจึงถูกออกจากระบบ ถ้าไม่ใช่คุณ ให้ติดต่อ Admin',
+  pwChanged: 'Password ของ Username นี้ถูกเปลี่ยน ให้ Login ใหม่',
+  takeoverBusy: 'มีเครื่องอื่นกำลังขอเข้าใช้งานบัญชีนี้อยู่ ให้รอสักครู่แล้วลองใหม่',
+  takeoverWait: 'กำลังรอเครื่องเดิมออกจากระบบ',
+  deniedE: 'บัญชี Google นี้กำลังถูกใช้งานที่เครื่องอื่น และเครื่องนั้นไม่อนุญาตให้เข้าใช้งานซ้อน ถ้าไม่ใช่คุณ ให้เปลี่ยนรหัสผ่าน Gmail และออกจากระบบ Google ทุกอุปกรณ์',
+  deniedU: 'บัญชีนี้กำลังถูกใช้งานที่เครื่องอื่น และเครื่องนั้นไม่อนุญาตให้เข้าใช้งานซ้อน ถ้าไม่ใช่ตัวเองให้ติดต่อ Admin',
+  ticket: 'หมดเวลารอ ให้เข้าสู่ระบบใหม่'
 };
 
 const ADMIN_MAP_SHEET = 'ผังที่นั่ง', ADMIN_FIRST_ROW = 17;
@@ -148,6 +159,7 @@ function doPost(e) {
   let b;
   try { b = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'bad_request' }); }
   const ctx = { b: b, now: Date.now() };
+  BLK_ = null; DBH_ = null;   // สำเนาต่อคำขอ (ของจริงอยู่ใน cache)
   try {
     const fn = ACTIONS[b && b.action];
     if (!fn) return json_({ ok: false, error: 'unknown_action' });
@@ -176,12 +188,30 @@ const ACTIONS = {
   'admin.login': opAdminLogin_,
   'admin.logout': opAdminLogout_,
   'admin.save': opAdminSave_,
-  'missions.unlock': opMissionsUnlock_
+  'missions.unlock': opMissionsUnlock_,
+  ping: opPing_,
+  extend: opExtend_,
+  logout: opLogout_,
+  bye: opBye_,
+  'takeover.poll': opTakeoverPoll_,
+  'takeover.deny': opTakeoverDeny_
 };
 
 // ---------- Script Properties ----------
 let PROPS_ = null;
-function props_() { if (!PROPS_) PROPS_ = PropertiesService.getScriptProperties().getProperties(); return PROPS_; }
+// ค่าตั้งระบบเก็บสำเนาใน cache 10 นาที (หน้าเว็บถามระบบทุก 10 วินาที จึงไม่อ่าน Script Properties ทุกครั้ง) · รัน setup() แล้วล้างให้เอง
+function props_() {
+  if (!PROPS_) {
+    let c = null;
+    try { c = CacheService.getScriptCache().get('cfg1'); } catch (e) { c = null; }
+    if (c) { try { PROPS_ = JSON.parse(c); } catch (e) { PROPS_ = null; } }
+    if (!PROPS_) {
+      PROPS_ = PropertiesService.getScriptProperties().getProperties();
+      try { CacheService.getScriptCache().put('cfg1', JSON.stringify(PROPS_), 600); } catch (e) { /* ไม่เป็นไร */ }
+    }
+  }
+  return PROPS_;
+}
 function prop_(k) { return String(props_()[k] || ''); }
 function fileId_(v) { const s = str_(v), m = /\/d\/([A-Za-z0-9_-]{20,})/.exec(s); return m ? m[1] : (/^[A-Za-z0-9_-]{20,}$/.test(s) ? s : ''); }
 
@@ -199,8 +229,15 @@ function unsign_(t, kind, now) {
 }
 function session_(ctx) {
   const s = unsign_(ctx.b.s, 's', ctx.now);
-  if (!s) throw err_('session', MSG.session);
-  ctx.email = s.e || ''; return s;
+  if (!s || !s.w || s.w !== wid_(ctx.b)) throw err_('session', MSG.session);
+  ctx.email = s.e || ''; ctx.sx = s.x; ctx.w = s.w;
+  if (ctx.email) {
+    if (blocked_().e[ctx.email]) throw err_('blocked_out', MSG.blockedOut);
+    const k = ownKey_('e', ctx.email), o = cget_(k);
+    if (o && o.w !== s.w) throw err_('kicked', MSG.kickedE);
+    if (!o) cput_(k, { w: s.w, at: ctx.now });
+  }
+  return s;
 }
 function pwTag_(pw) { return hex_(sha256_(utf8_('mpw|' + pw))).slice(0, 12); }
 function missionAuth_(ctx, ix) {
@@ -210,7 +247,9 @@ function missionAuth_(ctx, ix) {
 }
 function adminAuth_(ctx, ix) {
   const t = unsign_(ctx.b.at, 'a', ctx.now);
-  if (!t || t.m !== ix.id) throw err_('admin_token', MSG.admin);
+  if (!t || t.m !== ix.id || t.w !== ctx.w) throw err_('admin_token', MSG.admin);
+  const why = userGone_(ctx, t);
+  if (why) throw err_('admin_token', why);
   ctx.admin = t.u; return t;
 }
 
@@ -230,8 +269,10 @@ function opEnter_(ctx, b) {
   const ok = same_(String(b.pin || ''), pin);
   emailAttempt_(ctx, null, ok, 'ใส่รหัสเข้าใช้งาน', 'pin:all');
   if (!ok) { Utilities.sleep(400); throw err_('pin', MSG.pin); }
-  userLog_(ctx, null, email, '', 'เข้าใช้งาน', email ? 'Sign in with Google' : 'ไม่ได้ Sign in with Google');
-  return { ok: true, s: sign_({ k: 's', e: email, x: ctx.now + OPT.sessionHours * 3600e3 }), email: email };
+  const w = wid_(b);
+  if (!w) throw err_('bad_request', 'หน้าเว็บรุ่นเก่า ให้กด Ctrl+F5 แล้วลองใหม่');
+  if (blocked_().e[email]) throw err_('blocked', MSG.blocked);
+  return loginOrWait_(ctx, { act: 'enter', w: w, e: email });
 }
 // ตรวจ ID token ของ Google ที่ Google เอง แล้วคืนอีเมล
 function googleEmail_(credential, cid) {
@@ -241,6 +282,226 @@ function googleEmail_(credential, cid) {
   let t; try { t = JSON.parse(r.getContentText()); } catch (e) { return ''; }
   if (t.aud !== cid || !/^(https:\/\/)?accounts\.google\.com$/.test(String(t.iss)) || String(t.email_verified) !== 'true' || !(Number(t.exp) * 1000 > Date.now())) return '';
   return String(t.email || '').toLowerCase();
+}
+
+// =====================================================================
+// การเข้าใช้งานต่อหน้าต่าง
+//  - หน้าเว็บแต่ละแท็บมีรหัสหน้าต่าง (w) ของตัวเอง ส่งมากับทุกคำขอ บัตรผ่านทุกใบผูกกับหน้าต่างนั้น
+//  - Email (Sign in with Google) และ Username (หน้า ADMIN / ดูภารกิจที่เสร็จสิ้น) ใช้ได้ทีละ 1 หน้าต่าง
+//    ถ้ามีคนเข้าซ้อน: หน้าต่างเดิมเห็นข้อความภายในรอบถามถัดไป มีเวลากด "ไม่อนุญาต" 10 วินาที
+//    ไม่กด → หน้าต่างใหม่ได้เข้า หน้าต่างเดิมถูกออก · หน้าต่างเดิมปิดไปแล้ว / ไม่ได้ถามระบบเกิน 30 วินาที → เข้าได้เลย
+//  - ข้อมูลเหล่านี้อยู่ใน CacheService (ไม่มีโควตารายวันเหมือน Script Properties) ระบบหลังบ้านตัดสินทั้งหมด
+// =====================================================================
+let BLK_ = null, DBH_ = null;
+function wid_(b) { const w = String(b && b.w || ''); return /^[A-Za-z0-9_-]{12,64}$/.test(w) ? w : ''; }
+function cget_(k) { try { const v = CacheService.getScriptCache().get(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function cput_(k, v, sec) { try { CacheService.getScriptCache().put(k, JSON.stringify(v), sec || 21600); } catch (e) { /* ไม่เป็นไร */ } }
+function cdel_(k) { try { CacheService.getScriptCache().remove(k); } catch (e) { /* ไม่เป็นไร */ } }
+function ownKey_(type, v) { return 'own:' + type + ':' + String(v || '').toLowerCase(); }
+function alive_(w, now) {
+  const hb = Number(cget_('hb:' + w)) || 0, bye = Number(cget_('bye:' + w)) || 0;
+  return hb > 0 && now - hb <= OPT.hbStaleSec * 1000 && !(bye && bye >= hb);
+}
+function release_(key, w) { const o = cget_(key); if (o && o.w === w) cdel_(key); }
+function hTag_(hash) { return hex_(sha256_(utf8_('h|' + String(hash || '')))).slice(0, 10); }
+// Email / Username ที่ถูกบล็อก (สถานะ BLOCKED ในแท็บ LOCKED EMAILS / LOCKED USERS) อ่านใหม่ทุก 20 วินาที
+function blocked_() {
+  if (BLK_) return BLK_;
+  let m = cget_('blk');
+  if (!m) {
+    m = { e: {}, u: {} };
+    quietly_(function () {
+      if (!prop_(PROP.alog)) return;
+      [[LOCK_EMAIL, 'e'], [LOCK_USER, 'u']].forEach(function (x) {
+        const sh = lockSheet_(x[0]), n = sh.getLastRow();
+        if (n > 1) dv_(sh.getRange(2, 1, n - 1, 2)).forEach(function (r) { if (str_(r[1]).toUpperCase() === 'BLOCKED') m[x[1]][str_(r[0]).toLowerCase()] = 1; });
+      });
+    });
+    cput_('blk', m, 20);
+  }
+  BLK_ = m; return m;
+}
+// ลายนิ้วมือของ Password ปัจจุบันใน LOGIN DATABASE (Password ถูกเปลี่ยน → บัตรผ่านที่ได้จาก Password เดิมใช้ไม่ได้) อ่านใหม่ทุก 60 วินาที
+function dbTags_() {
+  if (DBH_) return DBH_;
+  let m = cget_('dbh');
+  if (!m) {
+    m = {};
+    try { loginDb_().forEach(function (p) { if (p.username) m[p.username.toLowerCase()] = hTag_(p.hash); }); } catch (e) { m = null; }
+    if (m) cput_('dbh', m, 60);
+  }
+  DBH_ = m || {}; return DBH_;
+}
+// บัตรผ่าน ADMIN / ดูภารกิจที่เสร็จสิ้น ยังใช้ได้ไหม: ถูกบล็อก / มีคนเข้า Username นี้จากหน้าต่างอื่น / Password ถูกเปลี่ยน
+function userGone_(ctx, t) {
+  const u = String(t.u || '').toLowerCase();
+  if (blocked_().u[u]) return MSG.blockedOut;
+  const k = ownKey_('u', u), o = cget_(k);
+  if (o && o.w !== t.w) return MSG.kickedU;
+  const tags = dbTags_();
+  if (t.h && Object.keys(tags).length && tags[u] !== t.h) return MSG.pwChanged;   // Password เปลี่ยน หรือ Username ถูกลบ
+  if (!o) cput_(k, { w: t.w, at: ctx.now });
+  return '';
+}
+// ขอใช้ Email / Username ให้หน้าต่าง w: คืน null = ได้แล้ว หรือ {type, seen} = ต้องรอหน้าต่างเดิม
+function claim_(ctx, req) {
+  const now = ctx.now, keys = [];
+  if (req.e) keys.push(['e', req.e]);
+  if (req.u) keys.push(['u', req.u]);
+  let wait = null;
+  const take = [];
+  keys.forEach(function (k) {
+    const key = ownKey_(k[0], k[1]), o = cget_(key), tkKey = 'tk:' + key;
+    if (!o || o.w === req.w || !alive_(o.w, now)) { take.push([key, o, k[0], 'หน้าต่างเดิมปิดไปแล้ว หรือไม่ได้ใช้งานเกิน ' + OPT.hbStaleSec + ' วินาที']); return; }
+    let tk = cget_(tkKey);
+    if (tk && tk.w !== req.w && tk.st === 'wait' && now - tk.poll <= OPT.reqStaleSec * 1000) throw err_('takeover_busy', MSG.takeoverBusy);
+    if (tk && tk.w === req.w && tk.st === 'denied') { cdel_(tkKey); throw err_('takeover_denied', k[0] === 'e' ? MSG.deniedE : MSG.deniedU); }
+    if (!tk || tk.w !== req.w || tk.owner !== o.w) {
+      tk = { w: req.w, owner: o.w, at: now, poll: now, seen: 0, st: 'wait', type: k[0] };
+      loginLog_(ctx, req.u || '', 'TAKEOVER_REQUEST', k[0] === 'e' ? 'Email ใช้ได้ทีละ 1 หน้าต่าง' : 'Username ใช้ได้ทีละ 1 หน้าต่าง', '', 'รอหน้าต่างเดิม (Login เมื่อ ' + fmtTime_(new Date(o.at || now)) + ')');
+    }
+    tk.poll = now;
+    if (tk.seen && now >= tk.seen + OPT.denySec * 1000 + 1500) { take.push([key, o, k[0], 'หน้าต่างเดิมไม่กดไม่อนุญาตภายใน ' + OPT.denySec + ' วินาที จึงถูกออกจากระบบ']); return; }
+    cput_(tkKey, tk, 300);
+    if (!wait) wait = { type: k[0], seen: tk.seen, until: tk.seen ? tk.seen + OPT.denySec * 1000 : 0 };
+  });
+  if (wait) return wait;
+  take.forEach(function (t) {
+    if (t[1] && t[1].w !== req.w) loginLog_(ctx, req.u || '', 'TAKEOVER', t[2] === 'e' ? 'Email ใช้ได้ทีละ 1 หน้าต่าง' : 'Username ใช้ได้ทีละ 1 หน้าต่าง', '', t[3]);
+    cput_(t[0], { w: req.w, at: now });
+    cdel_('tk:' + t[0]);
+  });
+  cput_('hb:' + req.w, now, 600);
+  return null;
+}
+// Login สำเร็จแล้ว: ได้ Email / Username → ออกบัตรผ่าน · ยังมีหน้าต่างเดิมใช้อยู่ → คืนตั๋วรอ (ใช้ถามซ้ำด้วย takeover.poll)
+function loginOrWait_(ctx, req) {
+  const run = function () {
+    const wait = claim_(ctx, req);
+    if (wait) return { ok: false, error: 'takeover_wait', message: MSG.takeoverWait, wait: wait,
+      pt: sign_({ k: 'p', act: req.act, w: req.w, e: req.e || '', u: req.u || '', h: req.h || '', m: req.m || '', x: ctx.now + 180000 }) };
+    return finishLogin_(ctx, req);
+  };
+  return req.act === 'enter' ? withLock_(run) : run();   // admin / view เรียกจากใน withLock_ อยู่แล้ว
+}
+function finishLogin_(ctx, req) {
+  if (req.act === 'enter') {
+    const x = ctx.now + OPT.clockMinutes * 60000;
+    userLog_(ctx, null, req.e, '', 'เข้าใช้งาน', req.e ? 'Sign in with Google' : 'ไม่ได้ Sign in with Google');
+    return { ok: true, s: sign_({ k: 's', e: req.e, w: req.w, x: x }), email: req.e, x: x, now: ctx.now };
+  }
+  if (req.act === 'view') {
+    loginLog_(ctx, req.u, 'VIEW_LOGIN', 'ดูภารกิจที่เสร็จสิ้น / ภารกิจทั้งหมด', '', '');
+    return { ok: true, vt: sign_({ k: 'v', u: req.u, e: ctx.email || '', w: req.w, h: req.h, x: ctx.sx }), x: ctx.sx };
+  }
+  const ix = indexRow_(SpreadsheetApp.getActive(), req.m);
+  adminAct_(ctx, req.u, ix, 'เข้าหน้า ADMIN', '');
+  return { ok: true, at: sign_({ k: 'a', u: req.u, m: req.m, e: ctx.email, w: req.w, h: req.h, x: ctx.sx }), user: req.u, x: ctx.sx };
+}
+function opTakeoverPoll_(ctx, b) {
+  const t = unsign_(b.pt, 'p', ctx.now);
+  if (!t || t.w !== wid_(b)) throw err_('ticket', MSG.ticket);
+  if (t.act === 'enter') { ctx.email = t.e; ctx.sx = 0; }
+  else { session_(ctx); if (t.e !== ctx.email) throw err_('ticket', MSG.ticket); }
+  return withLock_(function () {
+    if (t.act === 'admin') { const ix = indexRow_(SpreadsheetApp.getActive(), t.m); if (!ix) throw err_('no_mission', 'ไม่พบภารกิจนี้'); ctx.b.mt = b.mt; missionAuth_(ctx, ix); }
+    const req = { act: t.act, w: t.w, e: t.e, u: t.u, h: t.h, m: t.m };
+    const wait = claim_(ctx, req);
+    if (wait) return { ok: false, error: 'takeover_wait', message: MSG.takeoverWait, wait: wait, pt: b.pt };
+    return finishLogin_(ctx, req);
+  });
+}
+// ทุกบัตรผ่านของหน้าต่างนี้ (เพื่อหาคำขอเข้าซ้อนที่ส่งมาถึงหน้าต่างนี้)
+function myUsers_(ctx, b) {
+  const out = {};
+  [['at', 'a', 'admin'], ['vt', 'v', 'view']].forEach(function (x) {
+    const t = unsign_(b[x[0]], x[1], ctx.now);
+    if (!t || t.w !== ctx.w) return;
+    const why = userGone_(ctx, t);
+    out[x[2]] = why ? { why: why } : { u: String(t.u).toLowerCase() };
+  });
+  return out;
+}
+// หน้าเว็บถามทุก 10 วินาที: ยังใช้งานได้ไหม · มีคนขอเข้าซ้อนไหม · รหัสภารกิจถูกเปลี่ยนไหม · มีคน SAVE ภารกิจนี้ไหม
+function opPing_(ctx, b) {
+  const s = session_(ctx), now = ctx.now;
+  cput_('hb:' + s.w, now, 600);
+  if (ctx.email) cput_(ownKey_('e', ctx.email), { w: s.w, at: (cget_(ownKey_('e', ctx.email)) || {}).at || now });
+  const out = { ok: true, x: s.x, now: now };
+  const users = myUsers_(ctx, b), keys = [];
+  if (ctx.email) keys.push(ownKey_('e', ctx.email));
+  ['admin', 'view'].forEach(function (k) { if (!users[k]) return; if (users[k].why) out[k + 'Gone'] = users[k].why; else keys.push(ownKey_('u', users[k].u)); });
+  for (let i = 0; i < keys.length; i++) {
+    const tk = cget_('tk:' + keys[i]);
+    if (!tk || tk.owner !== s.w || tk.st !== 'wait' || now - tk.poll > OPT.reqStaleSec * 1000) continue;
+    if (!tk.seen) { tk.seen = now; cput_('tk:' + keys[i], tk, 300); }
+    out.takeover = { type: tk.type, left: Math.max(0, tk.seen + OPT.denySec * 1000 - now) };
+    break;
+  }
+  if (b.id) {
+    try {
+      const ss = SpreadsheetApp.getActive();
+      let tag = cget_('mp:' + b.id), ls = cget_('ls:' + b.id);
+      let ix = null;
+      if (tag === null) { ix = indexRow_(ss, b.id); if (ix) { tag = pwTag_(ix.pw); cput_('mp:' + b.id, tag, 60); } }
+      const t = unsign_(b.mt, 'm', now);
+      if (tag !== null && (!t || t.m !== String(b.id) || t.v !== tag)) out.mpw = true;
+      if (ls === null) {
+        ix = ix || indexRow_(ss, b.id);
+        const sh = ix ? sheetById_(ss, ix.id) : null;
+        if (sh) { const v = sh.getRange(LAST_SAVE_ROW, 2).getDisplayValue(); try { ls = v ? JSON.parse(v) : {}; } catch (e) { ls = {}; } cput_('ls:' + b.id, ls, 600); }
+      }
+      if (ls) out.lastSave = ls.at ? ls : null;
+    } catch (e) { /* ไม่ใช่เรื่องสำคัญ ถามรอบหน้า */ }
+  }
+  return out;
+}
+// หน้าต่างเดิมกด "ไม่อนุญาต ฉันกำลังใช้งานอยู่"
+function opTakeoverDeny_(ctx, b) {
+  const s = session_(ctx), users = myUsers_(ctx, b), keys = [];
+  if (ctx.email) keys.push(ownKey_('e', ctx.email));
+  ['admin', 'view'].forEach(function (k) { if (users[k] && users[k].u) keys.push(ownKey_('u', users[k].u)); });
+  return withLock_(function () {
+    let n = 0;
+    keys.forEach(function (key) {
+      const tk = cget_('tk:' + key);
+      if (!tk || tk.owner !== s.w || tk.st !== 'wait') return;
+      tk.st = 'denied'; cput_('tk:' + key, tk, 300); n++;
+      loginLog_(ctx, key.indexOf('own:u:') === 0 ? key.slice(6) : '', 'TAKEOVER_DENIED', tk.type === 'e' ? 'Email ใช้ได้ทีละ 1 หน้าต่าง' : 'Username ใช้ได้ทีละ 1 หน้าต่าง', '', 'หน้าต่างเดิมไม่อนุญาต');
+    });
+    return { ok: true, denied: n };
+  });
+}
+// ใช้งานต่อ: ต่อจากเวลาหมดเดิมไปอีก 90 นาที ทุกบัตรผ่านของหน้าต่างนี้
+function opExtend_(ctx, b) {
+  const s = session_(ctx), x = s.x + OPT.clockMinutes * 60000;
+  const re = function (t, kind) { const o = unsign_(t, kind, ctx.now); if (!o) return undefined; o.x = x; return sign_(o); };
+  const mts = {};
+  Object.keys(b.mts || {}).slice(0, 50).forEach(function (id) { const v = re(b.mts[id], 'm'); if (v) mts[id] = v; });
+  const out = { ok: true, x: x, now: ctx.now, s: re(b.s, 's'), mts: mts };
+  const at = unsign_(b.at, 'a', ctx.now); if (at && at.w === s.w) out.at = re(b.at, 'a');
+  const vt = unsign_(b.vt, 'v', ctx.now); if (vt && vt.w === s.w) out.vt = re(b.vt, 'v');
+  userLog_(ctx, null, ctx.email, '', 'ใช้งานต่อ', 'ใช้ได้ถึง ' + fmtTime_(new Date(x)));
+  return out;
+}
+// ออกจากระบบ (ปุ่ม Logout): คืน Email / Username ให้ใช้ที่หน้าต่างอื่นได้ทันที
+function opLogout_(ctx, b) {
+  const s = unsign_(b.s, 's', ctx.now);
+  if (!s || s.w !== wid_(b)) return { ok: true };
+  ctx.email = s.e || ''; ctx.w = s.w;
+  const users = [];
+  [['at', 'a'], ['vt', 'v']].forEach(function (x) { const t = unsign_(b[x[0]], x[1], ctx.now); if (t && t.w === s.w) users.push(String(t.u).toLowerCase()); });
+  if (s.e) release_(ownKey_('e', s.e), s.w);
+  users.forEach(function (u) { release_(ownKey_('u', u), s.w); loginLog_(ctx, u, 'LOGOUT', 'ออกจากระบบ', '', clean_(b.why, 80)); });
+  cdel_('hb:' + s.w);
+  userLog_(ctx, null, s.e, '', 'ออกจากระบบ', clean_(b.why, 80) || 'กด Logout');
+  return { ok: true };
+}
+// หน้าเว็บกำลังปิด / รีเฟรช (sendBeacon): ถ้าไม่กลับมาถามระบบอีก ถือว่าหน้าต่างนี้ปิดแล้ว ให้หน้าต่างอื่นเข้าได้ทันที
+function opBye_(ctx, b) {
+  const s = unsign_(b.s, 's', ctx.now);
+  if (s && s.w === wid_(b)) cput_('bye:' + s.w, ctx.now, 600);
+  return { ok: true };
 }
 
 // =====================================================================
@@ -304,12 +565,18 @@ function missionCtx_(ctx, ss, id) {
 function missionLabel_(ix) { return [ix.flight, ix.sectorNo ? 'S' + ix.sectorNo : '', ix.date].filter(String).join(' ') || ix.tab; }
 
 // ภารกิจที่ปิดแล้วส่งให้เฉพาะคนที่ Login ดูภารกิจที่เสร็จสิ้น / ทั้งหมด (token 'v') ผู้ใช้ทั่วไปได้เฉพาะภารกิจที่เปิดอยู่
-function viewAuth_(ctx, b) { const t = unsign_(b.vt, 'v', ctx.now); return !!(t && t.e === (ctx.email || '')); }
+function viewAuth_(ctx, b) {
+  const t = unsign_(b.vt, 'v', ctx.now);
+  if (!t || t.e !== (ctx.email || '') || t.w !== ctx.w) return false;
+  const why = userGone_(ctx, t);
+  if (why) { ctx.viewWhy = why; return false; }
+  return true;
+}
 function opMissionsUnlock_(ctx, b) {
   session_(ctx);
   return withLock_(function () {
     const p = credCheck_(ctx, b.cred, 'ดูภารกิจที่เสร็จสิ้น / ภารกิจทั้งหมด', null);
-    return { ok: true, vt: sign_({ k: 'v', u: p.username, e: ctx.email || '', x: ctx.now + OPT.viewHours * 3600e3 }), hours: OPT.viewHours };
+    return loginOrWait_(ctx, { act: 'view', w: ctx.w, e: ctx.email, u: p.username.toLowerCase(), h: hTag_(p.hash) });
   });
 }
 function opMissions_(ctx, b) {
@@ -328,7 +595,7 @@ function opMissions_(ctx, b) {
     }).join('\n');
     userLog_(ctx, null, ctx.email, '', 'เปิดหน้ารายการภารกิจ', 'เปิดอยู่ ' + open.length + ' ภารกิจ (ทั้งหมด ' + all.length + ')', names || '-');
   }
-  return { ok: true, missions: out.reverse(), canView: canView };
+  return { ok: true, missions: out.reverse(), canView: canView, viewWhy: ctx.viewWhy || '' };
 }
 
 function opCreate_(ctx, b) {
@@ -344,7 +611,7 @@ function opCreate_(ctx, b) {
     const done = rid ? CacheService.getScriptCache().get(rid) : null;
     if (done && sheetById_(ss, done)) {
       const r0 = indexRow_(ss, done);
-      if (r0) return { ok: true, id: done, again: true, mt: sign_({ k: 'm', m: done, e: ctx.email, v: pwTag_(r0.pw), x: ctx.now + OPT.missionHours * 3600e3 }) };
+      if (r0) return { ok: true, id: done, again: true, mt: sign_({ k: 'm', m: done, e: ctx.email, v: pwTag_(r0.pw), x: ctx.sx }) };
     }
     const ix = indexSheet_(ss);
     const v = {};
@@ -363,7 +630,7 @@ function opCreate_(ctx, b) {
     userLog_(ctx, rec, ctx.email, by, 'เปิดภารกิจ', detail);
     adminAct_(ctx, p.username, rec, 'เปิดภารกิจใหม่', detail);
     if (rid) { try { CacheService.getScriptCache().put(rid, id, 1800); } catch (e) { /* ไม่เป็นไร */ } }
-    return { ok: true, id: id, mt: sign_({ k: 'm', m: id, e: ctx.email, v: pwTag_(pw), x: ctx.now + OPT.missionHours * 3600e3 }) };
+    return { ok: true, id: id, mt: sign_({ k: 'm', m: id, e: ctx.email, v: pwTag_(pw), x: ctx.sx }) };
   });
 }
 
@@ -377,7 +644,7 @@ function opOpen_(ctx, b) {
   emailAttempt_(ctx, m.ix, ok, 'ใส่รหัสภารกิจ', 'mpw:' + m.ix.id);
   if (!ok) { Utilities.sleep(400); throw err_('mpw', MSG.mpw); }
   userLog_(ctx, m.ix, ctx.email, '', 'เข้าภารกิจ', missionLabel_(m.ix));
-  return { ok: true, mt: sign_({ k: 'm', m: m.ix.id, e: ctx.email, v: pwTag_(m.ix.pw), x: ctx.now + OPT.missionHours * 3600e3 }) };
+  return { ok: true, mt: sign_({ k: 'm', m: m.ix.id, e: ctx.email, v: pwTag_(m.ix.pw), x: ctx.sx }) };
 }
 
 // =====================================================================
@@ -467,7 +734,8 @@ function opLoad_(ctx, b) {
   const m = missionCtx_(ctx, ss, b.id);
   missionAuth_(ctx, m.ix);
   let isAdmin = false;
-  if (b.at) { try { adminAuth_(ctx, m.ix); isAdmin = true; } catch (e) { isAdmin = false; } }
+  let adminWhy = '';
+  if (b.at) { try { adminAuth_(ctx, m.ix); isAdmin = true; } catch (e) { isAdmin = false; adminWhy = String(e && e.message || ''); } }
   const st = readMission_(m.sh);
   let status = {}, statusError = '';
   try { status = adminStatus_(); } catch (err) { statusError = String(err && err.message || err); }
@@ -477,7 +745,7 @@ function opLoad_(ctx, b) {
   return {
     ok: true, id: m.ix.id, tab: m.sh.getName(), mstatus: m.ix.status, closeInfo: m.ix.closeInfo,
     info: st.info, crew: st.crew, pax: st.pax, crewPax: isAdmin ? st.crewPax : undefined, admin: isAdmin ? ctx.admin : '',
-    lastSave: st.lastSave, status: status, statusError: statusError, history: history
+    lastSave: st.lastSave, status: status, statusError: statusError, history: history, adminWhy: adminWhy
   };
 }
 
@@ -529,7 +797,7 @@ function finishSave_(ctx, ss, m, cur, log, n, by, now, conflicts, admin) {
   const nowTxt = fmtTime_(now);
   appendLog_(m.sh, log);
   const lastSave = n ? { by: by, at: now.toISOString(), n: n, e: ctx.email } : cur.lastSave;
-  if (n) m.sh.getRange(LAST_SAVE_ROW, 2).setValue(JSON.stringify(lastSave));
+  if (n) { m.sh.getRange(LAST_SAVE_ROW, 2).setValue(JSON.stringify(lastSave)); cput_('ls:' + m.ix.id, lastSave || {}, 21600); }
   // ชื่อแท็บ = เที่ยวบิน S<Sector> วันที่
   const want = tabTitle_(cur.info.flight, cur.info.sectorNo, cur.info.date, '');
   if (want && want !== m.sh.getName()) {
@@ -640,6 +908,8 @@ function credCheck_(ctx, cred, purpose, ix, extraOk, extraWhy) {
   }
   lockReset_(username, lockU, ctx.now, LOCK_USER);
   lockReset_(email, lockE, ctx.now, LOCK_EMAIL);
+  // เพิ่งปลดบล็อกในชีต แต่สำเนาใน cache ยังจำว่าบล็อก: อ่านใหม่ บัตรผ่านที่จะออกให้จะได้ใช้ได้ทันที
+  if (blocked_().u[username] || (email && blocked_().e[email])) { cdel_('blk'); BLK_ = null; }
   loginLog_(ctx, username, 'LOGIN_OK', purpose, mission, '');
   return p;
 }
@@ -653,6 +923,7 @@ function opMpwChange_(ctx, b) {
     const m = missionCtx_(ctx, ss, b.id);
     const p = credCheck_(ctx, b.cred, 'เปลี่ยนรหัสภารกิจ', m.ix);
     setIndex_(ss, m.ix.row, { pw: pw });
+    cput_('mp:' + m.ix.id, pwTag_(pw), 60);
     adminAct_(ctx, p.username, m.ix, 'เปลี่ยนรหัสภารกิจ', m.ix.pw ? 'เปลี่ยนรหัสใหม่ (รหัสดูได้ในแท็บ ' + INDEX_SHEET + ')' : 'ตั้งรหัสครั้งแรก');
     appendLog_(m.sh, [[fmtTime_(new Date(ctx.now)), ctx.email, p.username, 'เปลี่ยนรหัสภารกิจ', '', '', '']]);
     userLog_(ctx, m.ix, ctx.email, p.username, 'เปลี่ยนรหัสภารกิจ', 'โดย ' + p.username);
@@ -698,8 +969,7 @@ function opAdminLogin_(ctx, b) {
     const m = missionCtx_(ctx, ss, b.id);
     missionAuth_(ctx, m.ix);
     const p = credCheck_(ctx, b.cred, 'ADMIN PAGE', m.ix);
-    adminAct_(ctx, p.username, m.ix, 'เข้าหน้า ADMIN', '');
-    return { ok: true, at: sign_({ k: 'a', u: p.username, m: m.ix.id, e: ctx.email, x: ctx.now + OPT.adminHours * 3600e3 }), user: p.username, hours: OPT.adminHours };
+    return loginOrWait_(ctx, { act: 'admin', w: ctx.w, e: ctx.email, u: p.username.toLowerCase(), h: hTag_(p.hash), m: m.ix.id });
   });
 }
 function opAdminLogout_(ctx, b) {
@@ -707,7 +977,11 @@ function opAdminLogout_(ctx, b) {
   const ss = SpreadsheetApp.getActive();
   const m = missionCtx_(ctx, ss, b.id);
   const t = unsign_(b.at, 'a', ctx.now);
-  if (t && t.m === m.ix.id) { loginLog_(ctx, t.u, 'LOGOUT', 'ADMIN PAGE', missionLabel_(m.ix), clean_(b.why, 80)); adminAct_(ctx, t.u, m.ix, 'ออกจากหน้า ADMIN', clean_(b.why, 80)); }
+  if (t && t.m === m.ix.id && t.w === ctx.w) {
+    loginLog_(ctx, t.u, 'LOGOUT', 'ADMIN PAGE', missionLabel_(m.ix), clean_(b.why, 80)); adminAct_(ctx, t.u, m.ix, 'ออกจากหน้า ADMIN', clean_(b.why, 80));
+    const v = unsign_(b.vt, 'v', ctx.now);
+    if (!(v && v.w === ctx.w && v.u === t.u)) release_(ownKey_('u', t.u), ctx.w);
+  }
   return { ok: true };
 }
 function opAdminSave_(ctx, b) {
@@ -809,6 +1083,7 @@ function lockFail_(key, st, now, kind) {
     out.status = st.status;
   }
   lockWrite_(key, st, now, kind);
+  if (st.status === 'BLOCKED') { cdel_('blk'); BLK_ = null; }
   return out;
 }
 function lockOk_(key, st, now, kind) { st.status = 'ACTIVE'; st.fails = 0; st.round = 0; st.until = 0; lockWrite_(key, st, now, kind); }
@@ -832,7 +1107,7 @@ function emailAttempt_(ctx, ix, ok, what, anonKey) {
     if (st.status === 'PAUSED') { userLog_(ctx, ix, email, '', what + ' (ถูกพัก)', 'พักถึง ' + fmtTime_(new Date(st.until))); throw err_('locked', 'ใส่ข้อมูลผิดหลายครั้ง ให้รอถึง ' + untilTxt_(st.until) + ' แล้วลองใหม่'); }
     // ใส่ถูกแล้วเริ่มนับใหม่ ยกเว้นช่วงหลังพัก (LAST_TRY): รหัสเว็บไซต์ / รหัสภารกิจที่ถูกไม่ล้างรอบที่ 2
     // จะล้างได้ด้วยการ Login ด้วย LOGIN DATABASE สำเร็จ หรือแอดมินแก้สถานะเป็น ACTIVE
-    if (ok) { if (st.status !== 'LAST_TRY') lockReset_(email, st, ctx.now, LOCK_EMAIL); return; }
+    if (ok) { if (st.status !== 'LAST_TRY') lockReset_(email, st, ctx.now, LOCK_EMAIL); if (blocked_().e[email]) { cdel_('blk'); BLK_ = null; } return; }
     const r = lockFail_(email, st, ctx.now, LOCK_EMAIL);
     userLog_(ctx, ix, email, '', what + 'ผิด', 'ครั้งที่ ' + r.fails + (r.round ? ' (หลังพัก)' : '') + (r.status === 'PAUSED' ? ' · พัก ' + OPT.pauseMinutes + ' นาที' : r.status === 'BLOCKED' ? ' · บล็อก (ปลดในแท็บ ' + AL_PINLOCK + ')' : ''));
   });
@@ -1059,6 +1334,7 @@ function setup() {
   put(PROP.ulog, SETUP.userLogSheet, true); put(PROP.alog, SETUP.adminLogSheet, true);
   if (!sp.getProperty(PROP.secret)) sp.setProperty(PROP.secret, hex_(sha256_(utf8_(Utilities.getUuid() + Utilities.getUuid()))) + hex_(sha256_(utf8_(Utilities.getUuid()))));
   PROPS_ = null;
+  try { CacheService.getScriptCache().removeAll(['cfg1', 'blk', 'dbh']); } catch (e) { try { CacheService.getScriptCache().remove('cfg1'); } catch (e2) { /* ไม่เป็นไร */ } }
   const missing = [];
   if (!prop_(PROP.pin)) missing.push('accessPin');
   [[PROP.seat, 'adminSeatSheet'], [PROP.db, 'loginDatabase'], [PROP.ulog, 'userLogSheet'], [PROP.alog, 'adminLogSheet']].forEach(function (x) { if (!prop_(x[0])) missing.push(x[1]); });

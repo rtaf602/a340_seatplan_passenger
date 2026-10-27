@@ -6,9 +6,9 @@
 <title>A340 Passenger Seat Plan</title>
 <link rel="icon" href="emblem.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Barlow+Semi+Condensed:wght@400;500;600&family=Sarabun:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="app.css?v=2610160930">
-<link rel="stylesheet" href="boardingpass.css?v=2610160930">
-<script src="config.js?v=2610160930"></script>
+<link rel="stylesheet" href="app.css?v=2610271200">
+<link rel="stylesheet" href="boardingpass.css?v=2610271200">
+<script src="config.js?v=2610271200"></script>
 </head>
 <body>
 
@@ -16,11 +16,10 @@
 <div class="wrap" id="pageMissions" hidden>
   <div class="bar">
     <h1>SEAT PLAN A340<small>ผังที่นั่งผู้โดยสารชั่วคราว · เลือกหรือเปิดภารกิจ</small></h1>
+    <div class="acct"><span class="acctinfo"></span><button class="btn sm logout" type="button">ออกจากระบบ</button></div>
     <div class="tools">
       <button class="btn pri" id="bNew" type="button">+ เปิดภารกิจใหม่</button>
       <button class="btn" id="bReloadM" type="button">โหลดใหม่</button>
-      <span class="grow"></span>
-      <span class="me" id="meM"></span>
     </div>
   </div>
   <div class="notice" id="noticeM" hidden></div>
@@ -49,6 +48,7 @@
   <div class="bar">
     <a class="back" href="#" id="backLink">‹ รายการภารกิจ</a>
     <h1 id="planTitle">SEAT PLAN A340<small>ผังที่นั่งผู้โดยสาร</small></h1>
+    <div class="acct"><span class="acctinfo"></span><button class="btn sm logout" type="button">ออกจากระบบ</button></div>
     <div class="who" id="whoBox"><label for="whoP">ชื่อผู้บันทึก</label><input id="whoP" maxlength="60" placeholder="กรอกทุกครั้งก่อน SAVE" autocomplete="off"></div>
     <div class="tools" id="paxTools">
       <button class="btn danger" id="bClear" type="button">CLEAR</button>
@@ -68,10 +68,11 @@
       <button class="btn gold" id="aBp" type="button">PRINT BOARDING PASS</button>
       <button class="btn" id="aLogout" type="button">LOGOUT</button>
     </div>
-    <div class="status"><span class="pend" id="pend"></span><span id="lastSave"></span></div>
+    <div class="status"><span class="seatsum" id="seatSum"></span><span class="pend" id="pend"></span><span id="lastSave"></span></div>
     <div class="sync" id="sync">กำลังโหลดข้อมูล…</div>
   </div>
   <div class="notice" id="notice" hidden></div>
+  <div class="savebar" id="saveBar" hidden role="status"><span id="sbMsg"></span><button class="btn sm" id="sbLoad" type="button">โหลดล่าสุด</button></div>
 
   <section class="card" id="infoCard">
     <h2>ข้อมูลภารกิจ</h2>
@@ -169,10 +170,38 @@
   <div class="acts"><button class="btn" id="xlNo" type="button">ยกเลิก</button><button class="btn" id="xlBlank" type="button">ฟอร์มเปล่า (ไว้กรอกเอง)</button><button class="btn pri" id="xlFull" type="button">มีรายชื่อที่ SAVE แล้ว</button></div>
 </dialog>
 
-<dialog id="stale" class="small">
-  <h3>⚠ มีผู้ SAVE ข้อมูลไปก่อน</h3>
-  <p class="sub" id="stMsg"></p>
-  <div class="acts"><button class="btn" id="stNo" type="button">ปิด</button><button class="btn pri" id="stLoad" type="button">โหลดข้อมูลล่าสุด</button></div>
+<dialog id="cfDlg" class="mid">
+  <h3>ที่นั่งนี้มีคนอื่นแก้ไขไปก่อน เลือกว่าจะใช้ค่าไหน</h3>
+  <p class="sub" id="cfSub">เลือกให้ครบทุกรายการ ระบบไม่เลือกให้เอง · รายการอื่นที่ไม่ชนกันจะบันทึกพร้อมกัน</p>
+  <div class="tablebox"><table class="cftable" id="cfTable"></table></div>
+  <p class="hint left">ใช้ของคุณ = บันทึกทับค่าในระบบ (ประวัติบันทึกค่าเดิมไว้) · ใช้ในระบบ = ทิ้งค่าที่คุณแก้ · ยกเลิก = ยังไม่บันทึกอะไร สิ่งที่กรอกไว้ยังอยู่</p>
+  <div class="acts"><button class="btn" id="cfNo" type="button">ยกเลิก</button><button class="btn pri" id="cfYes" type="button" disabled>ยืนยันแล้ว SAVE</button></div>
+</dialog>
+
+<dialog id="tkWait" class="small">
+  <h3>กำลังรอเครื่องเดิมออกจากระบบ</h3>
+  <p class="sub" id="tkwMsg"></p>
+  <p class="tkcount" id="tkwCount"></p>
+  <div class="acts"><button class="btn" id="tkwNo" type="button">ยกเลิก</button></div>
+</dialog>
+
+<dialog id="tkAsk" class="small">
+  <h3>⚠ มีผู้ Login เข้าใช้งานบัญชีนี้จากเครื่องอื่น</h3>
+  <p class="sub" id="tkaMsg"></p>
+  <p class="tkcount" id="tkaCount"></p>
+  <div class="acts"><button class="btn danger" id="tkaNo" type="button">ไม่อนุญาต ฉันกำลังใช้งานอยู่</button></div>
+</dialog>
+
+<dialog id="expDlg" class="small">
+  <h3>จะหมดเวลาใช้งานเร็วๆ นี้</h3>
+  <p class="sub" id="expMsg"></p>
+  <div class="acts"><button class="btn" id="expNo" type="button">ปิดข้อความ</button><button class="btn pri" id="expYes" type="button">ต้องการใช้งานต่อ</button></div>
+</dialog>
+
+<dialog id="loDlg" class="small">
+  <h3>ออกจากระบบ</h3>
+  <p class="sub" id="loMsg"></p>
+  <div class="acts"><button class="btn" id="loNo" type="button">ยกเลิก</button><button class="btn danger" id="loDrop" type="button">ทิ้งรายการที่ยังไม่ SAVE</button><button class="btn pri" id="loSave" type="button">SAVE ก่อน</button></div>
 </dialog>
 
 <dialog id="newDlg" class="small">
@@ -276,8 +305,8 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="excel.js?v=2610160930"></script>
-<script src="boardingpass.js?v=2610160930"></script>
-<script src="app.js?v=2610160930"></script>
+<script src="excel.js?v=2610271200"></script>
+<script src="boardingpass.js?v=2610271200"></script>
+<script src="app.js?v=2610271200"></script>
 </body>
 </html>
