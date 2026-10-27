@@ -221,13 +221,14 @@ function initGsi(){
   if(!gsiLoaded)gsiLoaded=new Promise(function(ok,no){var s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=ok;s.onerror=no;document.head.appendChild(s)});
   gsiLoaded.then(function(){
     google.accounts.id.initialize({client_id:clientId,callback:function(r){gsiCred=r.credential||'';
-      var e=jwtEmail(gsiCred);$('gsiOk').textContent=e?'Sign in แล้ว: '+e:'Sign in แล้ว';$('gsiOk').hidden=!gsiCred;$('gateErr').hidden=true;gsiStep();$('gatePin').focus()},
+      var e=jwtEmail(gsiCred);$('gsiOk').textContent=e?'Sign in แล้ว: '+e:'Sign in แล้ว';$('gsiOk').hidden=!gsiCred;if(!oldApi)$('gateErr').hidden=true;gsiStep();$('gatePin').focus()},
       auto_select:true,cancel_on_tap_outside:false});
     $('gsiBtn').textContent='';
     google.accounts.id.renderButton($('gsiBtn'),{theme:'outline',size:'large',text:'signin_with',shape:'rectangular',width:300});
   },function(){$('gateErr').textContent='โหลดปุ่ม Sign in with Google ไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วโหลดหน้าใหม่';$('gateErr').hidden=false});
 }
 $('gateBtn').addEventListener('click',function(){
+  if(oldApi){$('gateErr').textContent=OLD_API_MSG;$('gateErr').hidden=false;return}
   var p=$('gatePin').value.trim();if(!p){$('gatePin').focus();return}
   if(clientId&&!gsiCred){$('gateErr').textContent='ขั้นที่ 1: กดปุ่ม Sign in with Google ก่อน แล้วจึงใส่รหัสผ่าน';$('gateErr').hidden=false;return}
   $('gateBtn').disabled=true;
@@ -1181,13 +1182,13 @@ function initWid(){return new Promise(function(done){
     if(dup){wid=newWid();sstore(WIDK,wid);sstore(AUTH,null)}else wid=w;done()},300)})}
 setInterval(paintAcct,30000);
 
-var NEED_API=3,oldApi=false;   // รุ่นของ Code.gs ที่หน้าเว็บนี้ต้องใช้
+var NEED_API=3,oldApi=false,OLD_API_MSG='ระบบหลังบ้าน (Apps Script) ยังเป็นรุ่นเก่า ยังเข้าใช้งานไม่ได้ ให้ผู้ดูแลวางโค้ด apps-script/Code.gs ล่าสุด แล้ว Deploy เป็น New version (เปิดลิงก์ /exec ต้องเห็น "api":3)';   // รุ่นของ Code.gs ที่หน้าเว็บนี้ต้องใช้
 function start(){
   if(!API){route();return}
   initWid().then(function(){
     restoreAuth();
     rawApi({action:'config'}).then(function(res){clientId=res&&res.googleClientId||'';
-      if(!res||res.api!==NEED_API){oldApi=true;sess='';sstore(AUTH,null);showGate('ระบบหลังบ้าน (Apps Script) ยังเป็นรุ่นเก่า ให้ผู้ดูแลวางโค้ด apps-script/Code.gs ล่าสุด แล้ว Deploy เป็น New version ก่อนใช้งาน');$('gateBtn').disabled=true;return}
+      if(!res||res.api!==NEED_API){oldApi=true;sess='';sstore(AUTH,null);showGate(OLD_API_MSG);return}
       if(sess){route(false);startPing()}else route(true)},function(){showGate('ติดต่อระบบไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วโหลดหน้าใหม่')});
   });
 }

@@ -153,7 +153,7 @@ function crewRows_(c) {
 // =====================================================================
 // Web API (POST แบบ text/plain)
 // =====================================================================
-function doGet() { return json_({ ok: true, app: 'Seat Plan A340 Passenger API' }); }
+function doGet() { return json_({ ok: true, app: 'Seat Plan A340 Passenger API', api: API_VERSION }); }
 
 function doPost(e) {
   let b;
