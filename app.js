@@ -1124,7 +1124,7 @@ var expWarned=0,expDismissed=0;
 function paintAcct(){
   [].forEach.call(document.querySelectorAll('.acctinfo'),function(x){x.textContent='';
     if(!sess)return;if(email)x.appendChild(document.createTextNode(email+' · '));
-    x.appendChild(document.createTextNode('ใช้ได้ถึง '));x.appendChild(el('b',null,hm(clockX)+' น.'))});
+    if(clockX){x.appendChild(document.createTextNode('ใช้ได้ถึง '));x.appendChild(el('b',null,hm(clockX)+' น.'))}});
 }
 function paintExp(){var left=Math.max(0,clockX-srvNow()),m=Math.floor(left/60000),s=Math.floor(left%60000/1000);
   $('expMsg').textContent='Account ของคุณจะหมดเวลาใช้งานในอีก '+m+':'+p2(s)+' นาที (เวลา '+hm(clockX)+' น.) หากต้องการใช้งานต่อ ให้กดปุ่ม “ต้องการใช้งานต่อ” จะใช้ได้ต่ออีก 90 นาที ถึงเวลา '+hm(clockX+90*60000)+' น.'}
@@ -1181,11 +1181,13 @@ function initWid(){return new Promise(function(done){
     if(dup){wid=newWid();sstore(WIDK,wid);sstore(AUTH,null)}else wid=w;done()},300)})}
 setInterval(paintAcct,30000);
 
+var NEED_API=3,oldApi=false;   // รุ่นของ Code.gs ที่หน้าเว็บนี้ต้องใช้
 function start(){
   if(!API){route();return}
   initWid().then(function(){
     restoreAuth();
     rawApi({action:'config'}).then(function(res){clientId=res&&res.googleClientId||'';
+      if(!res||res.api!==NEED_API){oldApi=true;sess='';sstore(AUTH,null);showGate('ระบบหลังบ้าน (Apps Script) ยังเป็นรุ่นเก่า ให้ผู้ดูแลวางโค้ด apps-script/Code.gs ล่าสุด แล้ว Deploy เป็น New version ก่อนใช้งาน');$('gateBtn').disabled=true;return}
       if(sess){route(false);startPing()}else route(true)},function(){showGate('ติดต่อระบบไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วโหลดหน้าใหม่')});
   });
 }

@@ -173,8 +173,10 @@ function doPost(e) {
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function err_(code, message, extra) { const e = new Error(message || code); e.code = code; e.extra = extra; return e; }
 
+// รุ่นของระบบหลังบ้าน: หน้าเว็บเทียบกับรุ่นที่ต้องการ ถ้าไม่ตรงจะแจ้งให้วางโค้ด Code.gs ล่าสุดและ Deploy ใหม่
+const API_VERSION = 3;
 const ACTIONS = {
-  config: function () { return { ok: true, googleClientId: prop_(PROP.cid) || '', pinRequired: true }; },
+  config: function () { return { ok: true, googleClientId: prop_(PROP.cid) || '', pinRequired: true, api: API_VERSION }; },
   enter: opEnter_,
   missions: opMissions_,
   create: opCreate_,
