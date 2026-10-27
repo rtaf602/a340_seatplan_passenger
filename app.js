@@ -622,7 +622,10 @@ function renderTools(){
   var sb=view==='admin'?$('aSave'):$('bSave');
   if(!saving){sb.textContent=n?'SAVE ('+n+')':'SAVE';sb.disabled=!n||ro}
   $('bClear').disabled=ro;$('aClear').disabled=ro;
-  var ls=M&&M.lastSave;$('lastSave').textContent=ls&&ls.at?('SAVE ล่าสุด: '+[ls.by,fmtTH(ls.at)].filter(Boolean).join(' · ')):'ยังไม่เคย SAVE';
+  var ls=M&&M.lastSave,lb=$('lastSave');lb.textContent='';
+  if(ls&&ls.at){var who=[ls.e,ls.u,ls.by&&ls.by!==ls.u?ls.by:''].filter(Boolean);
+    lb.appendChild(document.createTextNode('SAVE ล่าสุด: '+(who.length?who.join(' · ')+' · ':'')));lb.appendChild(el('b','lsat',fmtTH(ls.at)))}
+  else lb.textContent='ยังไม่เคย SAVE';
   var st=zoneStats().sum,sm=$('seatSum'),n;
   if(view==='admin'){n=st.crewFree;sm.textContent=st.crew?'ที่นั่งลูกเรือคงเหลือ '+n+' จาก '+st.crew+' ที่นั่ง':'ยังไม่ได้กั้น CREW ZONE';sm.title='ที่นั่งใน CREW ZONE ที่ยังไม่มีชื่อลูกเรือ'}
   else{n=st.free;sm.textContent='ที่นั่งคงเหลือ '+n+' จาก '+(st.t-st.crew)+' ที่นั่ง'+(st.freeBad?' (รวมที่นั่งใช้ไม่ได้ '+st.freeBad+')':'');

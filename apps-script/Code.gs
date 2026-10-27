@@ -798,7 +798,7 @@ function opSave_(ctx, b) {
 function finishSave_(ctx, ss, m, cur, log, n, by, now, conflicts, admin) {
   const nowTxt = fmtTime_(now);
   appendLog_(m.sh, log);
-  const lastSave = n ? { by: by, at: now.toISOString(), n: n, e: ctx.email } : cur.lastSave;
+  const lastSave = n ? { by: by, at: now.toISOString(), n: n, e: ctx.email, u: admin ? (ctx.admin || '') : '' } : cur.lastSave;
   if (n) { m.sh.getRange(LAST_SAVE_ROW, 2).setValue(JSON.stringify(lastSave)); cput_('ls:' + m.ix.id, lastSave || {}, 21600); }
   // ชื่อแท็บ = เที่ยวบิน S<Sector> วันที่
   const want = tabTitle_(cur.info.flight, cur.info.sectorNo, cur.info.date, '');

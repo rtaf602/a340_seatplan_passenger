@@ -336,3 +336,4 @@ dialog.mid{width:min(720px,calc(100vw - 24px))}
 .tkcount{font:600 28px/1.2 var(--mono);text-align:center;margin:6px 0;color:var(--bad)}
 @media (max-width:600px){.acct{width:100%;justify-content:space-between}.cftable{font-size:12px}}
 .err.info{color:var(--ok);font-weight:600}
+.status .lsat{color:var(--ink);font-weight:700;font-size:13px}
