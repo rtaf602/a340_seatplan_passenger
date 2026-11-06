@@ -6,9 +6,9 @@
 <title>A340 Passenger Seat Plan</title>
 <link rel="icon" href="emblem.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Barlow+Semi+Condensed:wght@400;500;600&family=Sarabun:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="app.css?v=2610271330">
-<link rel="stylesheet" href="boardingpass.css?v=2610271330">
-<script src="config.js?v=2610271330"></script>
+<link rel="stylesheet" href="app.css?v=2611061130">
+<link rel="stylesheet" href="boardingpass.css?v=2611061130">
+<script src="config.js?v=2611061130"></script>
 </head>
 <body>
 
@@ -68,7 +68,7 @@
       <button class="btn gold" id="aBp" type="button">PRINT BOARDING PASS</button>
       <button class="btn" id="aLogout" type="button">LOGOUT</button>
     </div>
-    <div class="status"><span class="seatsum" id="seatSum"></span><span class="pend" id="pend"></span><span id="lastSave"></span></div>
+    <div class="status"><span class="pend" id="pend"></span><span id="lastSave"></span></div>
     <div class="sync" id="sync" hidden></div>
   </div>
   <div class="notice" id="notice" hidden></div>
@@ -89,6 +89,7 @@
       <label class="f"><span>BOARDING TIME</span><input data-k="time" maxlength="5" inputmode="numeric" placeholder="07:00"></label>
       <label class="f wide"><span>หมายเหตุสำหรับ Boarding Pass</span><input data-k="note" maxlength="200" placeholder="บัตรที่ระลึก · ไม่ใช่เอกสารเดินทาง"></label>
     </div>
+    <div class="seatsum" id="seatSum" aria-live="polite"></div>
   </section>
 
   <section class="card admin" id="crewCard" hidden>
@@ -98,6 +99,7 @@
       <label class="f"><span>จากท้ายเครื่อง ถึงแถว</span><select id="crewRear"></select></label>
     </div>
     <p class="hint left">โซนที่กั้นขึ้น <b class="red">CREW ZONE</b> ผู้โดยสารกรอกไม่ได้ และหักออกจากจำนวนที่นั่งว่าง แตะที่นั่งใน CREW ZONE เพื่อกรอกข้อมูลลูกเรือ เปลี่ยนแล้วกด SAVE</p>
+    <div class="seatsum" id="seatSumA" aria-live="polite"></div>
   </section>
 
   <div class="legend" id="legend">
@@ -305,8 +307,8 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="excel.js?v=2610271330"></script>
-<script src="boardingpass.js?v=2610271330"></script>
-<script src="app.js?v=2610271330"></script>
+<script src="excel.js?v=2611061130"></script>
+<script src="boardingpass.js?v=2611061130"></script>
+<script src="app.js?v=2611061130"></script>
 </body>
 </html>

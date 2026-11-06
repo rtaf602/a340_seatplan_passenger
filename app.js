@@ -478,7 +478,7 @@ function setView(v,quiet){
   if(!quiet)renderAll();
 }
 function dropAdmin(){atok='';admUser='';admMission='';if(M)M.crewPax=null;saveAuth()}
-function renderAll(){if(!M)return;renderTitle();renderInfo();renderPlan();renderManifest();renderHistory();renderAdmin();renderTools();renderNotice()}
+function renderAll(){if(!M)return;renderTitle();renderInfo();renderPlan();renderSeatSum();renderManifest();renderHistory();renderAdmin();renderTools();renderNotice()}
 function renderNotice(){var n=$('notice'),msgs=[];
   if(closed())msgs.push('ภารกิจนี้ปิดแล้ว ('+(M.closeInfo||'')+') ดูได้อย่างเดียว ถ้าต้องการแก้ไขให้เปิดภารกิจอีกครั้งจากหน้ารายการภารกิจ');
   if(M.statusError)msgs.push('อ่านสภาพที่นั่งจากไฟล์ Seat Plan 340 (For Admin) ไม่ได้ ('+M.statusError+') ผังจึงแสดงทุกที่นั่งเป็นปกติ');
@@ -626,11 +626,29 @@ function renderTools(){
   if(ls&&ls.at){var who=[ls.e,ls.by&&ls.by!==ls.u?ls.by:''].filter(Boolean);   // ไม่แสดง Username (SAVE จากหน้า ADMIN: ls.by = Username)
     lb.appendChild(document.createTextNode('SAVE ล่าสุด: '+(who.length?who.join(' · ')+' · ':'')));lb.appendChild(el('b','lsat',fmtTH(ls.at)))}
   else lb.textContent='ยังไม่เคย SAVE';
-  var st=zoneStats().sum,sm=$('seatSum'),n;
-  if(view==='admin'){n=st.crewFree;sm.textContent=st.crew?'ที่นั่งลูกเรือคงเหลือ '+n+' จาก '+st.crew+' ที่นั่ง':'ยังไม่ได้กั้น CREW ZONE';sm.title='ที่นั่งใน CREW ZONE ที่ยังไม่มีชื่อลูกเรือ'}
-  else{n=st.free;sm.textContent='ที่นั่งคงเหลือ '+n+' จาก '+(st.t-st.crew)+' ที่นั่ง'+(st.freeBad?' (รวมที่นั่งใช้ไม่ได้ '+st.freeBad+')':'');
-    sm.title='หัก CREW ZONE ('+st.crew+' ที่นั่ง) และที่นั่งที่มีชื่อผู้โดยสารแล้ว ('+st.occ+' ที่นั่ง) · ที่นั่งใช้ไม่ได้ใส่ชื่อได้เมื่อที่นั่งไม่พอ'}
-  sm.classList.toggle('zero',!n);
+}
+/* สรุปที่นั่งคงเหลือ: ใต้ข้อมูลภารกิจ (หน้าผู้โดยสาร) / ใต้ CREW ZONE (หน้า ADMIN) · นับรวมรายการที่ยังไม่ SAVE ด้วย
+   ที่นั่งคงเหลือ = ไม่อยู่ใน CREW ZONE และยังไม่มีชื่อผู้โดยสาร · แสดงทั้งแบบรวม และไม่รวมที่นั่งใช้งานไม่ได้ (ที่นั่งใช้ไม่ได้ยังกรอกชื่อได้)
+   ตัวเลขเกี่ยวกับลูกเรือแสดงเฉพาะหน้า ADMIN */
+function renderSeatSum(){$('seatSum').textContent='';$('seatSumA').textContent='';if(!M)return;
+  var adm=view==='admin',host=$(adm?'seatSumA':'seatSum'),T=zoneStats(),s=T.sum,pend=pending(adm?'admin':'pax').n>0;
+  var mains=el('div','ss-mains');
+  [['รวมที่นั่งใช้งานไม่ได้',s.free,''],['ไม่รวมที่นั่งใช้งานไม่ได้',s.free-s.freeBad,' alt']].forEach(function(x){
+    var m=el('div','ss-main'+x[2]+(x[1]?'':' zero'));m.appendChild(el('small',null,'ที่นั่งคงเหลือ'));m.appendChild(el('em',null,x[0]));
+    m.appendChild(el('b',null,String(x[1])));m.appendChild(el('span',null,'จาก '+s.t+' ที่นั่ง'));mains.appendChild(m)});
+  host.appendChild(mains);
+  var g=el('div','ss-grid'),chips=[['มีผู้โดยสาร',String(s.occ),'occ']];
+  if(adm)chips.push(['ลูกเรือกรอกชื่อแล้ว',s.crewOcc+' / '+s.crew,'crew']);
+  chips.push(['ที่นั่งว่างที่ใช้งานไม่ได้',String(s.freeBad),'bad']);
+  chips.forEach(function(x){var c=el('div','ss-item '+x[2]);c.appendChild(el('small',null,x[0]));c.appendChild(el('b',null,x[1]));g.appendChild(c)});
+  host.appendChild(g);
+  var z=el('div','ss-zones');
+  ZONES.forEach(function(zz){var v=T[zz.key],c=el('span','ss-z'+(v.free?'':' zero'));
+    c.appendChild(el('span',null,zz.title));c.appendChild(el('b',null,String(v.free)));
+    if(v.freeBad)c.appendChild(el('i',null,'ไม่รวมใช้ไม่ได้ '+(v.free-v.freeBad)));
+    c.title='ที่นั่งคงเหลือ '+v.free+' (รวมที่นั่งใช้งานไม่ได้) · '+(v.free-v.freeBad)+' (ไม่รวมที่นั่งใช้งานไม่ได้)';z.appendChild(c)});
+  host.appendChild(z);
+  if(pend)host.appendChild(el('p','ss-note','รวมรายการที่ยังไม่ SAVE'));
 }
 
 /* ----- seat dialog (passenger, or crew on the ADMIN page) ----- */
@@ -668,7 +686,7 @@ function setPerson(mode,id,val){
   if(!bag[id])bag[id]={base:norm(saved),val:null};
   bag[id].val=norm(val);cleanDraft();persistDraft();
 }
-function afterEdit(){renderPlan();renderManifest();renderTools()}
+function afterEdit(){renderPlan();renderSeatSum();renderManifest();renderTools()}
 $('dOk').addEventListener('click',function(){
   if(!cur)return;var id=cur,mode=curMode;
   var v={};PF.forEach(function(k){var x=$(FIELDS[k]).value.trim().replace(/\s{2,}/g,' ');if(k==='rt'||k==='re')x=x.replace(/\s+/g,'');if(k==='re'||k==='fe'||k==='le')x=x.toUpperCase();v[k]=x});

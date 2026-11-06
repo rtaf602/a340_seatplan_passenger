@@ -319,9 +319,6 @@ dialog.wide[open]{display:flex;flex-direction:column}
 .acctinfo{font-size:12px;color:var(--muted);text-align:right;overflow-wrap:anywhere}
 .acctinfo b{color:var(--ink);font-weight:600}
 .acct .logout{white-space:nowrap}
-/* ----- ที่นั่งคงเหลือ ----- */
-.seatsum{color:var(--ink);font-weight:700;background:var(--ok-soft);border:1px solid var(--ok);border-radius:4px;padding:0 6px}
-.seatsum.zero{background:var(--bad-soft);border-color:var(--bad)}
 /* ----- มีคนอื่น SAVE ระหว่างกรอก ----- */
 .savebar{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:6;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--warn-soft);border:1px solid var(--warn);border-radius:8px;padding:8px 12px;font-size:14px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.12)}
 .savebar span{flex:1;min-width:0}
@@ -337,3 +334,27 @@ dialog.mid{width:min(720px,calc(100vw - 24px))}
 @media (max-width:600px){.acct{width:100%;justify-content:space-between}.cftable{font-size:12px}}
 .err.info{color:var(--ok);font-weight:600}
 .status .lsat{color:var(--ink);font-weight:700;font-size:13px}
+/* ----- สรุปที่นั่งคงเหลือ (ใต้ข้อมูลภารกิจ / ใต้ CREW ZONE ในหน้า ADMIN) ----- */
+.seatsum{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;gap:10px 18px;align-items:center}
+.seatsum:empty{display:none}
+.ss-mains{display:flex;flex-wrap:wrap;gap:8px}
+.ss-main{display:flex;flex-direction:column;align-items:flex-start;background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:8px 16px;min-width:150px;box-sizing:border-box}
+.ss-main small{font-size:12px;font-weight:600;opacity:.9}
+.ss-main em{font-style:normal;font-size:11px;font-weight:600;opacity:.9}
+.ss-main b{font-family:var(--mono);font-size:32px;line-height:1.1}
+.ss-main span{font-size:12px;opacity:.9}
+.ss-main.zero{background:var(--muted)}
+.ss-main.alt{background:var(--panel);color:var(--ink);border:2px solid var(--accent)}
+.ss-main.alt.zero{border-color:var(--muted)}
+.ss-grid{display:flex;flex-wrap:wrap;gap:8px}
+.ss-item{display:flex;flex-direction:column;border:1px solid var(--line);border-left-width:4px;border-radius:6px;padding:4px 12px;min-width:96px}
+.ss-item small{font-size:12px;color:var(--muted)}
+.ss-item b{font-family:var(--mono);font-size:18px}
+.ss-item.occ{border-left-color:var(--accent)}.ss-item.crew{border-left-color:var(--crew)}.ss-item.bad{border-left-color:var(--bad)}
+.ss-zones{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.ss-z{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 4px 2px 10px}
+.ss-z b{font-family:var(--mono);background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:0 8px;min-width:12px;text-align:center}
+.ss-z.zero b{background:var(--muted)}
+.ss-z i{font-style:normal;font-size:11px;color:var(--muted);padding-right:6px}
+.ss-note{grid-column:1/-1;margin:0;font-size:12px;font-weight:600;color:var(--warn)}
+@media (max-width:520px){.seatsum{grid-template-columns:1fr}.ss-mains .ss-main{flex:1 1 0;min-width:0}}
