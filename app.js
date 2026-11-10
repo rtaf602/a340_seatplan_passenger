@@ -930,7 +930,7 @@ function excelModel(mode,blank){
   var crewMode=mode==='crew',set=crewRows(getCrew()),stats=zoneStats();
   var seatObj=function(id,label,mon){var st=status(id),crew=!!set[SEAT[id].row];
     var p=crew?(crewMode?getCrewPax(id):null):getPax(id);
-    return {label:label,s:st.s,mon:mon?st.m:null,crew:crew,name:p?shortName(p):''}};
+    return {id:id,label:label,s:st.s,mon:mon?st.m:null,crew:crew,fill:crewMode?crew:!crew,name:p?shortName(p):''}};
   var zones=ZONES.map(function(z){var v=stats[z.key],free=crewMode?(blank?v.crew:v.crewFree):(blank?v.t-v.crew:v.free);
     return {title:z.title,free:free,freeLabel:crewMode?(v.crew?'ที่นั่งลูกเรือว่าง ':'ไม่มี CREW ZONE'):'ที่นั่งว่าง ',noCount:crewMode&&!v.crew,items:z.items.map(function(it){
       if(it.cc)return {type:'cc',crew:!!set.CC,seat:seatObj('CC','CC',true)};

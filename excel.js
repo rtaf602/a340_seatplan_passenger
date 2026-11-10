@@ -18,7 +18,7 @@ function ref(r,c){return colName(c)+r}
 function clone(o){return JSON.parse(JSON.stringify(o||{}))}
 
 /* ---------- sheet model ---------- */
-function Sheet(){this.cells={};this.heights={};this.merges=[];this.row=1;this.blocks=[]}
+function Sheet(){this.cells={};this.heights={};this.merges=[];this.row=1;this.blocks=[];this.seatRefs=[];this.cf=[]}
 Sheet.prototype.cell=function(r,c){var k=r+':'+c;if(!this.cells[k])this.cells[k]={r:r,c:c,v:null,s:{}};return this.cells[k]};
 Sheet.prototype.set=function(r,c,v,s){var x=this.cell(r,c);if(v!=null)x.v=v;if(s)x.s=mergeStyle(x.s,s);return x};
 Sheet.prototype.style=function(r1,c1,r2,c2,s){for(var r=r1;r<=r2;r++)for(var c=c1;c<=c2;c++)this.set(r,c,null,s)};
@@ -49,13 +49,21 @@ Styles.prototype.xf=function(s){var k=JSON.stringify(s);if(this.xk[k]==null){
   this.xk[k]=this.xfs.length;
   this.xfs.push('<xf numFmtId="49" fontId="'+fo+'" fillId="'+fi+'" borderId="'+bo+'" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">'+al+'</xf>')}
   return this.xk[k]};
+/* สีช่องที่นั่งเมื่อมีชื่อ (ฟอร์มเปล่า): conditional formatting */
+var DXF={occ:C.accent,crew:C.crew,bad:C.bad};
+Styles.prototype.dxf=function(kind){this.dx=this.dx||[];var i=this.dx.indexOf(kind);if(i<0){this.dx.push(kind);i=this.dx.length-1}return i};
+function cfXml(sh,st){return sh.cf.map(function(x,i){
+  return '<conditionalFormatting sqref="'+x.ref+'"><cfRule type="expression" dxfId="'+st.dxf(x.kind)+'" priority="'+(i+1)+'"><formula>'+esc(x.f)+'</formula></cfRule></conditionalFormatting>'}).join('')}
 Styles.prototype.xml=function(){
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
     '<fonts count="'+this.fonts.length+'">'+this.fonts.join('')+'</fonts><fills count="'+this.fills.length+'">'+this.fills.join('')+'</fills>'+
     '<borders count="'+this.borders.length+'">'+this.borders.join('')+'</borders>'+
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
     '<cellXfs count="'+this.xfs.length+'">'+this.xfs.join('')+'</cellXfs>'+
-    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'};
+    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'+
+    ((this.dx||[]).length?'<dxfs count="'+this.dx.length+'">'+this.dx.map(function(k){
+      return '<dxf><font><color rgb="FFFFFFFF"/></font><fill><patternFill patternType="solid"><fgColor rgb="FF'+DXF[k]+'"/><bgColor rgb="FF'+DXF[k]+'"/></patternFill></fill></dxf>'}).join('')+'</dxfs>':'')+
+    '</styleSheet>'};
 
 /* ---------- layout ---------- */
 var S={
@@ -87,6 +95,8 @@ function seatCells(sh,r,c,seat,blank){
   var bottom=st===1?['thick',C.warn]:['thin',line];
   sh.set(r,c,label,{font:{b:1,sz:9,color:fg},fill:fill,align:{h:'center',v:'center'},border:{l:['thin',line],r:['thin',line],t:top}});
   sh.set(r+1,c,name,{font:{sz:8,color:occ?C.white:C.ink},fill:fill,align:{h:'center',v:'center',wrap:1},border:{l:['thin',line],r:['thin',line],b:bottom}});
+  // ฟอร์มเปล่า: ช่องชื่อดึงจากรายชื่อด้านล่างเอง (สูตร) และเปลี่ยนสีเมื่อมีชื่อ
+  if(blank&&seat.fill&&seat.id)sh.seatRefs.push({r:r,c:c,id:seat.id,kind:crew?'crew':st===2?'bad':'occ'});
 }
 /* which grid columns a seat group uses */
 function groupCols(gi,len,ng){
@@ -148,18 +158,28 @@ function build(m){
     sh.row=R;blockEnd(b);
   });
   /* list */
-  var CH=32,list=m.list,rows=blank?Array.apply(null,Array(m.blankRows||30)).map(function(){return null}):list;
+  var listR=null,CH=32,list=m.list,rows=blank?Array.apply(null,Array(m.blankRows||30)).map(function(){return null}):list;
   var cols=[[2,3,'ที่นั่ง'],[4,6,'โซน'],[7,9,'ยศ ชื่อ-สกุล (ไทย)'],[10,13,'RANK NAME (EN)']];
   if(!rows.length){var b1=blockStart();R=sh.row;sh.merge(R,2,R,13,m.listTitle,S.h2);sh.h(R,20);R++;sh.merge(R,2,R,13,'ยังไม่มีรายชื่อ',S.meta);R++;sh.row=R;blockEnd(b1)}
   for(var i=0;i<rows.length;i+=CH){
     var bb=blockStart();R=sh.row;
-    sh.merge(R,2,R,13,m.listTitle+(blank?'':' ('+list.length+' คน)')+(i?' ต่อ':''),S.h2);sh.h(R,20);R++;
+    sh.merge(R,2,R,13,m.listTitle+(blank?(i?' ต่อ':'  ·  กรอกเลขที่นั่ง (เช่น 11A, CC) และชื่อ ชื่อจะขึ้นในผังด้านบนเอง'):' ('+list.length+' คน)'+(i?' ต่อ':'')),S.h2);sh.h(R,20);R++;
     cols.forEach(function(c){sh.merge(R,c[0],R,c[1],c[2],S.th)});sh.h(R,16);R++;
     rows.slice(i,i+CH).forEach(function(p){
       var v=p?[p.id,p.zone,p.th,p.en]:['','','',''];
       cols.forEach(function(c,k){sh.merge(R,c[0],R,c[1],v[k],mergeStyle(S.td,k===0?{font:{b:1,sz:9}}:{}))});sh.h(R,18);R++;
     });
     sh.row=R;blockEnd(bb);
+    if(blank){if(!listR)listR=[R-Math.min(CH,rows.length-i),R-1];else listR[1]=R-1}
+  }
+  /* ฟอร์มเปล่า: กรอกเลขที่นั่ง (เช่น 11A) และชื่อในรายชื่อด้านล่าง ชื่อจะขึ้นในช่องที่นั่งเอง (ภาษาไทยก่อน ไม่มีใช้ภาษาอังกฤษ) */
+  if(blank&&listR){
+    var rs=function(c){return '$'+colName(c)+'$'+listR[0]+':$'+colName(c)+'$'+listR[1]},SEATR=rs(2),THR=rs(7),ENR=rs(10);
+    sh.seatRefs.forEach(function(x){
+      var key='"'+x.id+'"',mt='MATCH('+key+','+SEATR+',0)',th='INDEX('+THR+','+mt+')&""',en='INDEX('+ENR+','+mt+')&""';
+      sh.cell(x.r+1,x.c).f='IFERROR(IF('+th+'="",'+en+','+th+'),"")';
+      sh.cf.push({ref:ref(x.r,x.c)+':'+ref(x.r+1,x.c),kind:x.kind,f:'LEN($'+colName(x.c)+'$'+(x.r+1)+')>0'});
+    });
   }
   return toXlsx(sh,m);
 }
@@ -186,6 +206,7 @@ function toXlsx(sh,m){
     if(!cs.length&&ht==null)continue;
     rowsXml+='<row r="'+r+'"'+(ht!=null?' ht="'+ht+'" customHeight="1"':'')+'>';
     cs.forEach(function(x){var s=st.xf(x.s);
+      if(x.f){rowsXml+='<c r="'+ref(x.r,x.c)+'" s="'+s+'" t="str"><f>'+esc(x.f)+'</f><v></v></c>';return}
       if(x.v==null||x.v==='')rowsXml+='<c r="'+ref(x.r,x.c)+'" s="'+s+'"/>';
       else rowsXml+='<c r="'+ref(x.r,x.c)+'" s="'+s+'" t="inlineStr"><is><t xml:space="preserve">'+esc(x.v)+'</t></is></c>'});
     rowsXml+='</row>';
@@ -197,7 +218,7 @@ function toXlsx(sh,m){
     '<dimension ref="A1:M'+maxR+'"/><sheetViews><sheetView workbookViewId="0" showGridLines="0" zoomScale="100" view="pageBreakPreview" zoomScaleSheetLayoutView="100"/></sheetViews>'+
     '<sheetFormatPr defaultRowHeight="15"/>'+cols+'<sheetData>'+rowsXml+'</sheetData>'+
     (sh.merges.length?'<mergeCells count="'+sh.merges.length+'">'+sh.merges.map(function(x){return '<mergeCell ref="'+x+'"/>'}).join('')+'</mergeCells>':'')+
-    '<printOptions horizontalCentered="1"/><pageMargins left="0.3" right="0.3" top="0.4" bottom="0.4" header="0.2" footer="0.2"/>'+
+    cfXml(sh,st)+'<printOptions horizontalCentered="1"/><pageMargins left="0.3" right="0.3" top="0.4" bottom="0.4" header="0.2" footer="0.2"/>'+
     '<pageSetup paperSize="9" orientation="portrait" scale="'+ps.scale+'"/>'+
     '<headerFooter><oddFooter>&amp;L'+esc(m.footer||'')+'&amp;Rหน้า &amp;P / &amp;N</oddFooter></headerFooter>'+
     (ps.breaks.length?'<rowBreaks count="'+ps.breaks.length+'" manualBreakCount="'+ps.breaks.length+'">'+ps.breaks.map(function(b){return '<brk id="'+b+'" max="16383" man="1"/>'}).join('')+'</rowBreaks>':'')+
@@ -205,7 +226,7 @@ function toXlsx(sh,m){
   var sheetName=m.sheetName||'Seat Plan';
   var wb='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
     '<bookViews><workbookView/></bookViews><sheets><sheet name="'+esc(sheetName)+'" sheetId="1" r:id="rId1"/></sheets>'+
-    '<definedNames><definedName name="_xlnm.Print_Area" localSheetId="0">\''+esc(sheetName.replace(/'/g,"''"))+'\'!$A$1:$M$'+maxR+'</definedName></definedNames></workbook>';
+    '<definedNames><definedName name="_xlnm.Print_Area" localSheetId="0">\''+esc(sheetName.replace(/'/g,"''"))+'\'!$A$1:$M$'+maxR+'</definedName></definedNames><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>';
   var zip=new window.JSZip();
   zip.file('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'+
