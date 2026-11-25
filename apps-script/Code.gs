@@ -19,10 +19,11 @@ const SETUP = {
   adminSeatSheet: '',   // ลิงก์หรือรหัสไฟล์ Seat Plan 340 (For Admin)
   loginDatabase: '',    // ลิงก์หรือรหัสไฟล์ LOGIN DATABASE
   userLogSheet: '',     // ลิงก์หรือรหัสไฟล์ Passenger Seat Plan A340 User Page
-  adminLogSheet: ''     // ลิงก์หรือรหัสไฟล์ Passenger Seat Plan A340 Admin Page
+  adminLogSheet: '',     // ลิงก์หรือรหัสไฟล์ Passenger Seat Plan A340 Admin Page
+  superAdmin: ''        // Username ของ Admin หลักของระบบ Login (E ADMIN) ได้สิทธิ์ Admin ของเว็บนี้เสมอ เหมือนในระบบ Login
 };
 
-const PROP = { pin: 'ACCESS_PIN', cid: 'GOOGLE_CLIENT_ID', seat: 'ADMIN_SEAT_SHEET_ID', db: 'LOGIN_DB_ID', ulog: 'USER_LOG_ID', alog: 'ADMIN_LOG_ID', secret: 'SECRET' };
+const PROP = { pin: 'ACCESS_PIN', cid: 'GOOGLE_CLIENT_ID', seat: 'ADMIN_SEAT_SHEET_ID', db: 'LOGIN_DB_ID', ulog: 'USER_LOG_ID', alog: 'ADMIN_LOG_ID', secret: 'SECRET', sup: 'SUPER_USER' };
 const OPT = {
   tz: 'Asia/Bangkok',
   // บัตรผ่านทุกใบ (เว็บไซต์ ภารกิจ ADMIN ดูภารกิจที่เสร็จสิ้น) ใช้นาฬิกาเดียวกัน: 90 นาทีนับจากเข้าเว็บไซต์ กด "ใช้งานต่อ" ได้ทีละ 90 นาที
@@ -36,10 +37,17 @@ const OPT = {
   maxFails: 5, pauseMinutes: 60,
   minMissionPw: 4,
   loginTab: 'DATABASE LOGIN',
-  roles: ['Admin', 'Editor', 'Viewer']
+  // Role ของบัญชีในระบบ Login (ตั้งแต่ 11 พ.ย. 2026 มี Admin / User · Editor, Viewer เดิมยังอ่านได้) บอกแค่ว่าบัญชีพร้อมใช้งาน
+  roles: ['Admin', 'User', 'Editor', 'Viewer'],
+  // ใครใช้งานที่ต้อง Login ได้ ตัดสินด้วย "สิทธิ์เว็บ" ของเว็บนี้ใน E ADMIN (ผู้ใช้สั่ง 25 พ.ย. 2026):
+  //   หน้า ADMIN / เปิดภารกิจใหม่ / ตั้ง-เปลี่ยนรหัสภารกิจ / ปิด-เปิดภารกิจ = Admin หรือ Editor ของเว็บนี้ · ดูภารกิจที่เสร็จสิ้น = มีสิทธิ์เว็บนี้ (รวม Viewer)
+  //   เว็บต้องอยู่ในแท็บ WEB LIST ของ LOGIN DATABASE และสถานะ "เปิด" · Admin หลัก (SETUP.superAdmin) เป็น Admin เสมอ
+  webCode: 'WEB6', webTab: 'WEB LIST', webCol: 'สิทธิ์เว็บ'
 };
 const MSG = {
   login: 'ข้อมูลไม่ถูกต้อง หรือบัญชียังไม่พร้อมใช้งาน ให้ติดต่อ Admin',
+  noWeb: 'บัญชีนี้ไม่มีสิทธิ์ใช้งานเว็บนี้ ให้ติดต่อ Admin',
+  webEdit: 'บัญชีนี้มีสิทธิ์ดูอย่างเดียว (Viewer) ในเว็บนี้ ใช้หน้า ADMIN และการจัดการภารกิจไม่ได้ ให้ติดต่อ Admin',
   pin: 'รหัสผ่านไม่ถูกต้อง',
   locked: 'ใส่ข้อมูลผิดหลายครั้ง ให้รอ ' + OPT.pauseMinutes + ' นาทีแล้วลองใหม่',
   blocked: 'บัญชี Google นี้ใส่ข้อมูลผิดหลายครั้งและถูกบล็อก ให้ติดต่อ Admin',
@@ -103,7 +111,7 @@ const LOCK_USER = { tab: AL_LOCK, head: AL_LOCK_HEAD, max: function () { return 
 const LOCK_EMAIL = { tab: AL_PINLOCK, head: AL_PINLOCK_HEAD, max: function () { return OPT.maxFails; }, pause: function () { return OPT.pauseMinutes; } };
 
 // LOGIN DATABASE: หาคอลัมน์จากชื่อหัวคอลัมน์ (เหมือนระบบ eadmin)
-const COL = { rank: 'ยศ', name: 'ชื่อ-สกุล', pos: 'ตำแหน่งงาน', idGov: 'ID Card ขรก.', idCit: 'ID Card ปชช.', birth: 'BIRTH DATE', role: 'Role', username: 'Username', salt: 'Salt', hash: 'hash', end: 'วันสิ้นสุดการใช้งาน' };
+const COL = { rank: 'ยศ', name: 'ชื่อ-สกุล', pos: 'ตำแหน่งงาน', idGov: 'ID Card ขรก.', idCit: 'ID Card ปชช.', birth: 'BIRTH DATE', role: 'Role', username: 'Username', salt: 'Salt', hash: 'hash', end: 'วันสิ้นสุดการใช้งาน', web: 'สิทธิ์เว็บ' };
 const BASE = ['name', 'pos', 'idGov', 'idCit', 'birth'];
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
@@ -342,7 +350,9 @@ function userGone_(ctx, t) {
   if (o && o.w !== t.w) return MSG.kickedU;
   const tags = dbTags_();
   if (t.h && Object.keys(tags).length && tags[u] !== t.h) return MSG.pwChanged;   // Password เปลี่ยน หรือ Username ถูกลบ
-  if (!o) cput_(k, { w: t.w, at: ctx.now });
+      const wr = dbWeb_();
+      if (wr && Object.keys(wr).length) { const r = wr[u] || ''; if (t.m ? !(r === 'Admin' || r === 'Editor') : !r) return r ? MSG.webEdit : MSG.noWeb; }   // ถอนสิทธิ์เว็บ / ปิดเว็บ
+      if (!o) cput_(k, { w: t.w, at: ctx.now });
   return '';
 }
 // ขอใช้ Email / Username ให้หน้าต่าง w: คืน null = ได้แล้ว หรือ {type, seen} = ต้องรอหน้าต่างเดิม
@@ -849,7 +859,8 @@ function parseDb_(values, tz) {
     people.push({
       name: name, pos: str_(at(r, 'pos')), idGov: digits_(at(r, 'idGov')), idCit: digits_(at(r, 'idCit')), birth: toIso_(at(r, 'birth'), tz),
       role: OPT.roles.filter(function (x) { return x.toLowerCase() === roleText; })[0] || '',
-      username: str_(at(r, 'username')), salt: str_(at(r, 'salt')), hash: str_(at(r, 'hash')), end: end, endBad: !end && str_(endRaw) !== ''
+      username: str_(at(r, 'username')), salt: str_(at(r, 'salt')), hash: str_(at(r, 'hash')), end: end, endBad: !end && str_(endRaw) !== '',
+      web: webOf_(at(r, 'web'))
     });
   }
   return people;
@@ -912,8 +923,44 @@ function credCheck_(ctx, cred, purpose, ix, extraOk, extraWhy) {
   lockReset_(email, lockE, ctx.now, LOCK_EMAIL);
   // เพิ่งปลดบล็อกในชีต แต่สำเนาใน cache ยังจำว่าบล็อก: อ่านใหม่ บัตรผ่านที่จะออกให้จะได้ใช้ได้ทันที
   if (blocked_().u[username] || (email && blocked_().e[email])) { cdel_('blk'); BLK_ = null; }
+  const role = webAccess_(p), canUse = purpose === VIEW_PURPOSE ? !!role : role === 'Admin' || role === 'Editor';
+  if (!canUse) {
+    loginLog_(ctx, username, 'NO_WEB_ACCESS', purpose, mission, role ? 'สิทธิ์เว็บ ' + OPT.webCode + ' = ' + role : webOpen_() ? 'ไม่มีสิทธิ์เว็บ ' + OPT.webCode : 'เว็บ ' + OPT.webCode + ' ไม่ได้เปิดในรายชื่อเว็บ');
+    throw err_('no_web', role ? MSG.webEdit : MSG.noWeb);
+  }
   loginLog_(ctx, username, 'LOGIN_OK', purpose, mission, '');
   return p;
+}
+// ---------- สิทธิ์เว็บ (จากระบบ Login E ADMIN) ----------
+const VIEW_PURPOSE = 'ดูภารกิจที่เสร็จสิ้น / ภารกิจทั้งหมด';
+// ช่อง "สิทธิ์เว็บ" เช่น "WEB1=Editor; WEB6=Admin" → Role ของเว็บนี้ ('' = ไม่มีสิทธิ์)
+function webOf_(v) {
+  let out = '';
+  str_(v).split(/[;,\n]/).forEach(function (part) {
+    const m = /^\s*([A-Za-z][A-Za-z0-9_]{1,19})\s*=\s*([A-Za-z]+)\s*$/.exec(part);
+    if (!m || m[1].toUpperCase() !== OPT.webCode) return;
+    out = ['Admin', 'Editor', 'Viewer'].filter(function (r) { return r.toLowerCase() === m[2].toLowerCase(); })[0] || '';
+  });
+  return out;
+}
+// เว็บนี้อยู่ในแท็บ WEB LIST และสถานะ "เปิด" (เหมือนระบบ Login: ไม่อยู่ในรายชื่อหรือปิด = ไม่มีใครใช้ได้)
+function webOpen_() {
+  const sh = SpreadsheetApp.openById(prop_(PROP.db)).getSheetByName(OPT.webTab);
+  if (!sh) return false;
+  return sh.getDataRange().getValues().some(function (r) { return str_(r[0]).toUpperCase() === OPT.webCode && str_(r[3]) === 'เปิด'; });
+}
+function isSuperUser_(p) { const s = str_(prop_(PROP.sup)).toLowerCase(); return !!s && str_(p.username).toLowerCase() === s; }
+function webAccess_(p) { return !webOpen_() ? '' : isSuperUser_(p) ? 'Admin' : (p.web || ''); }
+// Role ของเว็บนี้ของทุก Username (อ่านใหม่ทุก 60 วินาที) ใช้ตรวจบัตรผ่าน ADMIN / ดูภารกิจที่เสร็จสิ้น ที่ออกไปแล้ว: ถอนสิทธิ์หรือปิดเว็บ = ใช้ต่อไม่ได้
+function dbWeb_() {
+  const cache = CacheService.getScriptCache();
+  let m = null; try { m = JSON.parse(cache.get('dbw') || 'null'); } catch (e) { m = null; }
+  if (!m) {
+    try { const open = webOpen_(); m = {}; loginDb_().forEach(function (p) { if (p.username) m[p.username.toLowerCase()] = !open ? '' : isSuperUser_(p) ? 'Admin' : (p.web || ''); }); }
+    catch (e) { m = null; }
+    if (m) try { cache.put('dbw', JSON.stringify(m), 60); } catch (e) { /* ไม่เป็นไร */ }
+  }
+  return m;
 }
 
 function opMpwChange_(ctx, b) {
@@ -1334,9 +1381,10 @@ function setup() {
   put(PROP.pin, SETUP.accessPin); put(PROP.cid, SETUP.googleClientId);
   put(PROP.seat, SETUP.adminSeatSheet, true); put(PROP.db, SETUP.loginDatabase, true);
   put(PROP.ulog, SETUP.userLogSheet, true); put(PROP.alog, SETUP.adminLogSheet, true);
+  put(PROP.sup, SETUP.superAdmin);
   if (!sp.getProperty(PROP.secret)) sp.setProperty(PROP.secret, hex_(sha256_(utf8_(Utilities.getUuid() + Utilities.getUuid()))) + hex_(sha256_(utf8_(Utilities.getUuid()))));
   PROPS_ = null;
-  try { CacheService.getScriptCache().removeAll(['cfg1', 'blk', 'dbh']); } catch (e) { try { CacheService.getScriptCache().remove('cfg1'); } catch (e2) { /* ไม่เป็นไร */ } }
+  try { CacheService.getScriptCache().removeAll(['cfg1', 'blk', 'dbh', 'dbw']); } catch (e) { try { CacheService.getScriptCache().remove('cfg1'); } catch (e2) { /* ไม่เป็นไร */ } }
   const missing = [];
   if (!prop_(PROP.pin)) missing.push('accessPin');
   [[PROP.seat, 'adminSeatSheet'], [PROP.db, 'loginDatabase'], [PROP.ulog, 'userLogSheet'], [PROP.alog, 'adminLogSheet']].forEach(function (x) { if (!prop_(x[0])) missing.push(x[1]); });
@@ -1349,6 +1397,9 @@ function setup() {
   const s = adminStatus_();
   Logger.log('อ่านสภาพที่นั่งจากไฟล์ Seat Plan 340 (For Admin) ได้ ' + Object.keys(s).length + ' รายการ');
   Logger.log('อ่านรายชื่อจาก LOGIN DATABASE ได้ ' + loginDb_().length + ' แถว');
+  Logger.log(webOpen_() ? 'เว็บ ' + OPT.webCode + ' เปิดอยู่ในรายชื่อเว็บของ E ADMIN · มีสิทธิ์เว็บนี้ ' + loginDb_().filter(function (p) { return p.web; }).length + ' บัญชี'
+    : '⚠ ไม่พบเว็บ ' + OPT.webCode + ' ที่สถานะ "เปิด" ในแท็บ ' + OPT.webTab + ' ของ LOGIN DATABASE: ยังไม่มีใครเข้าหน้า ADMIN ได้');
+  Logger.log(prop_(PROP.sup) ? 'Admin หลัก: ' + prop_(PROP.sup) : '⚠ ยังไม่ได้กรอก superAdmin (Username ของ Admin หลัก) Admin หลักจะเข้าได้เฉพาะเมื่อมีสิทธิ์เว็บนี้');
   logTab_(prop_(PROP.ulog), UL_HOME, UL_HOME_HEAD);
   logTab_(prop_(PROP.alog), AL_LOGIN, AL_LOGIN_HEAD);
   logTab_(prop_(PROP.alog), AL_ACT, AL_ACT_HEAD);
